@@ -1,0 +1,229 @@
+/* ========================================
+   설정 페이지
+   ======================================== */
+
+.settings-page {
+    background: var(--color-surface);
+    padding: var(--space-32);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--color-card-border);
+}
+
+.settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: var(--space-16);
+}
+
+.add-date-setting {
+    background: var(--color-secondary);
+    border: 2px dashed var(--color-primary);
+    border-radius: var(--radius-base);
+    padding: var(--space-20);
+    text-align: center;
+    cursor: pointer;
+    transition: all var(--duration-normal) var(--ease-standard);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-primary);
+}
+
+.add-date-setting:hover {
+    background: var(--color-secondary-hover);
+    transform: translateY(-2px);
+}
+
+.add-date-setting:focus-visible {
+    outline: var(--focus-outline);
+    box-shadow: var(--focus-ring);
+}
+
+.setting-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+    padding: var(--space-16);
+    text-align: center;
+    box-shadow: var(--shadow-xs);
+}
+
+.setting-date {
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text);
+    margin-bottom: var(--space-10);
+    font-size: var(--font-size-base);
+}
+
+.setting-capacity {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-8);
+    margin-bottom: var(--space-10);
+}
+
+.capacity-input {
+    width: 50px;
+    padding: var(--space-6);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    text-align: center;
+    font-weight: var(--font-weight-semibold);
+    font-size: var(--font-size-sm);
+    font-family: var(--font-family-base);
+    background-color: var(--color-surface);
+    color: var(--color-text);
+}
+
+.capacity-input:focus {
+    outline: var(--focus-outline);
+    border-color: var(--color-primary);
+}
+
+.setting-actions {
+    display: flex;
+    gap: var(--space-8);
+}
+
+.setting-actions button {
+    flex: 1;
+    padding: var(--space-6) var(--space-8);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    transition: all var(--duration-normal) var(--ease-standard);
+}
+
+.save-setting {
+    background: var(--color-success);
+    color: var(--color-btn-primary-text);
+    box-shadow: var(--shadow-inset-sm);
+}
+
+.save-setting:hover {
+    background: var(--color-primary-hover);
+    transform: translateY(-1px);
+}
+
+.save-setting:focus-visible {
+    outline: var(--focus-outline);
+    box-shadow: var(--focus-ring);
+}
+
+.delete-setting {
+    background: var(--color-error);
+    color: var(--color-cream-50);
+    box-shadow: var(--shadow-inset-sm);
+}
+
+.delete-setting:hover {
+    opacity: 0.85;
+    transform: translateY(-1px);
+}
+
+.delete-setting:focus-visible {
+    outline: var(--focus-outline);
+    box-shadow: var(--focus-ring);
+}
+
+/* ========================================
+   용량 수정 모달
+   ======================================== */
+
+.capacity-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 2000;
+    align-items: center;
+    justify-content: center;
+}
+
+.capacity-modal.active {
+    display: flex;
+}
+
+.capacity-modal-content {
+    background: var(--color-surface);
+    padding: var(--space-32);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    text-align: center;
+    min-width: 300px;
+    border: 1px solid var(--color-card-border);
+}
+
+.capacity-modal-content h3 {
+    color: var(--color-primary);
+    margin-bottom: var(--space-20);
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-semibold);
+    letter-spacing: var(--letter-spacing-tight);
+}
+
+.capacity-modal-content .capacity-input {
+    width: 100%;
+    padding: var(--space-12);
+    font-size: var(--font-size-base);
+    margin-bottom: var(--space-20);
+}
+
+.capacity-modal-actions {
+    display: flex;
+    gap: var(--space-10);
+}
+
+.capacity-modal-actions button {
+    flex: 1;
+    padding: var(--space-10) var(--space-12);
+    border: none;
+    border-radius: var(--radius-base);
+    cursor: pointer;
+    font-weight: var(--font-weight-semibold);
+    transition: all var(--duration-normal) var(--ease-standard);
+    font-size: var(--font-size-sm);
+}
+
+.capacity-modal-save {
+    background: var(--color-primary);
+    color: var(--color-btn-primary-text);
+    box-shadow: var(--shadow-inset-sm);
+}
+
+.capacity-modal-save:hover {
+    background: var(--color-primary-hover);
+}
+
+.capacity-modal-save:active {
+    background: var(--color-primary-active);
+}
+
+.capacity-modal-save:focus-visible {
+    outline: var(--focus-outline);
+    box-shadow: var(--focus-ring);
+}
+
+.capacity-modal-cancel {
+    background: var(--color-secondary);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+}
+
+.capacity-modal-cancel:hover {
+    background: var(--color-secondary-hover);
+}
+
+.capacity-modal-cancel:active {
+    background: var(--color-secondary-active);
+}
+
+.capacity-modal-cancel:focus-visible {
+    outline: var(--focus-outline);
+    box-shadow: var(--focus-ring);
+}

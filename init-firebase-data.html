@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase Firestore 데이터 초기화</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f0f4f9;
+        }
+
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #0066CC;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        #status {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #0066CC;
+            font-size: 16px;
+            line-height: 1.8;
+            min-height: 100px;
+            color: #2c3e50;
+            font-weight: 500;
+        }
+
+        .success {
+            color: #27ae60;
+        }
+
+        .error {
+            color: #e74c3c;
+        }
+
+        .info {
+            color: #0066CC;
+        }
+
+        .note {
+            margin-top: 30px;
+            padding: 15px;
+            background: #e8f4f8;
+            border-radius: 8px;
+            color: #0066CC;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🚀 Firebase Firestore 초기화</h1>
+        <div id="status">준비 중...</div>
+        <div class="note">
+            <strong>📌 주의사항:</strong><br>
+            ✓ 이 페이지는 <strong>처음 한 번만</strong> 실행해야 합니다<br>
+            ✓ 실행 후 "✅ 완료!" 메시지가 나타나면 성공입니다<br>
+            ✓ 그 다음 Firebase Auth 계정도 생성해야 로그인 가능합니다
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+
+    <!-- config.js 로드 -->
+    <script src="js/config.js"></script>
+
+    <script>
+        const statusEl = document.getElementById('status');
+
+        async function initializeData() {
+            try {
+                // Firestore 준비 확인
+                if (!db) {
+                    throw new Error('❌ Firestore가 초기화되지 않았습니다. config.js를 확인하세요.');
+                }
+
+                statusEl.innerHTML = '<span class="info">🔄 employees 컬렉션 생성 중...</span>';
+
+                // 더미 직원 데이터
+                const employeesData = [
+                    // 여기에 이름 입력 후 실행하면 됨.
+                    { name: "윤성준", email: "dbs03075@gmail.com", role: "employee", unit: "3제대", team: "7팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "3제대수인", email: "kim@example.com", role: "admin", unit: "3제대", createdAt: firebase.firestore.Timestamp.now() },
+                    // 이전 10개
+                    { name: "김민준", email: "minjun.kim@gmail.com", role: "employee", unit: "1제대", team: "2팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "이서연", email: "seoyeon.lee@naver.com", role: "employee", unit: "2제대", team: "5팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "박지훈", email: "jihoon.park@gmail.com", role: "employee", unit: "1제대", team: "1팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "최수아", email: "sua.choi@kakao.com", role: "employee", unit: "3제대", team: "8팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "정태양", email: "taeyang.jung@gmail.com", role: "employee", unit: "2제대", team: "4팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "한예진", email: "yejin.han@naver.com", role: "employee", unit: "1제대", team: "3팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "오동현", email: "donghyun.oh@gmail.com", role: "employee", unit: "3제대", team: "9팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "신지원", email: "jiwon.shin@daum.net", role: "employee", unit: "2제대", team: "6팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "임채원", email: "chaewon.lim@gmail.com", role: "employee", unit: "1제대", team: "1팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "강현우", email: "hyunwoo.kang@naver.com", role: "employee", unit: "3제대", team: "7팀", createdAt: firebase.firestore.Timestamp.now() },
+
+                    // 추가 30개
+                    { name: "송유진", email: "yujin.song@gmail.com", role: "employee", unit: "2제대", team: "5팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "윤지호", email: "jiho.yoon@naver.com", role: "employee", unit: "1제대", team: "2팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "배민서", email: "minseo.bae@gmail.com", role: "employee", unit: "3제대", team: "8팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "조하은", email: "haeun.jo@kakao.com", role: "employee", unit: "2제대", team: "4팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "노준혁", email: "junhyuk.noh@gmail.com", role: "employee", unit: "1제대", team: "3팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "문소희", email: "sohee.moon@naver.com", role: "employee", unit: "3제대", team: "7팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "류성민", email: "sungmin.ryu@daum.net", role: "employee", unit: "2제대", team: "6팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "홍예은", email: "yeeun.hong@gmail.com", role: "employee", unit: "1제대", team: "1팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "안지현", email: "jihyun.ahn@naver.com", role: "employee", unit: "3제대", team: "9팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "황도윤", email: "doyun.hwang@gmail.com", role: "employee", unit: "2제대", team: "5팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "전민아", email: "mina.jeon@kakao.com", role: "employee", unit: "1제대", team: "2팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "서준서", email: "junseo.seo@gmail.com", role: "employee", unit: "3제대", team: "8팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "백지수", email: "jisoo.baek@naver.com", role: "employee", unit: "2제대", team: "4팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "남태현", email: "taehyun.nam@gmail.com", role: "employee", unit: "1제대", team: "3팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "권나연", email: "nayeon.kwon@daum.net", role: "employee", unit: "3제대", team: "7팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "유하준", email: "hajun.yu@gmail.com", role: "employee", unit: "2제대", team: "6팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "장세은", email: "seeun.jang@naver.com", role: "employee", unit: "1제대", team: "1팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "이도경", email: "dokyung.lee@gmail.com", role: "employee", unit: "3제대", team: "9팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "김하율", email: "hayul.kim@kakao.com", role: "employee", unit: "2제대", team: "5팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "박선우", email: "sunwoo.park@gmail.com", role: "employee", unit: "1제대", team: "2팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "최건희", email: "gunhee.choi@naver.com", role: "employee", unit: "3제대", team: "8팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "정다은", email: "daeun.jung@gmail.com", role: "employee", unit: "2제대", team: "4팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "한승재", email: "seungjae.han@daum.net", role: "employee", unit: "1제대", team: "3팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "오서율", email: "seoyul.oh@gmail.com", role: "employee", unit: "3제대", team: "7팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "신민채", email: "minchae.shin@naver.com", role: "employee", unit: "2제대", team: "6팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "임재원", email: "jaewon.lim@gmail.com", role: "employee", unit: "1제대", team: "1팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "강소윤", email: "soyun.kang@kakao.com", role: "employee", unit: "3제대", team: "9팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "송현준", email: "hyunjun.song@gmail.com", role: "employee", unit: "2제대", team: "5팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "윤아름", email: "areum.yoon@naver.com", role: "employee", unit: "1제대", team: "2팀", createdAt: firebase.firestore.Timestamp.now() },
+                    { name: "배시온", email: "sion.bae@gmail.com", role: "employee", unit: "3제대", team: "8팀", createdAt: firebase.firestore.Timestamp.now() },
+
+                ];
+
+                let successCount = 0;
+                let failCount = 0;
+
+                // 각 직원 추가
+                for (const emp of employeesData) {
+                    try {
+                        await db.collection('employees').add(emp);
+                        statusEl.innerHTML += `<br><span class="success">✓ ${emp.name} 추가됨 (${emp.email})</span>`;
+                        successCount++;
+                    } catch (error) {
+                        statusEl.innerHTML += `<br><span class="error">✗ ${emp.name} 추가 실패: ${error.message}</span>`;
+                        failCount++;
+                    }
+                }
+
+                // 완료 메시지
+                statusEl.innerHTML += `<br><br><strong class="success">✅ 완료!</strong><br>`;
+                statusEl.innerHTML += `<span class="success">성공: ${successCount}명 / 실패: ${failCount}명</span><br><br>`;
+                statusEl.innerHTML += `<span class="info">📌 다음 단계:</span><br>`;
+                statusEl.innerHTML += `<span class="info">1️⃣  Firebase Console → Authentication에서</span><br>`;
+                statusEl.innerHTML += `<span class="info">2️⃣  위 이메일들로 계정 생성하세요</span><br>`;
+                statusEl.innerHTML += `<span class="info">3️⃣  그 후 앱에서 이름 + 비밀번호로 로그인</span>`;
+
+                console.log('✓ 초기화 완료!');
+
+            } catch (error) {
+                console.error('❌ 에러:', error);
+                statusEl.innerHTML = `<span class="error"><strong>❌ 오류 발생:</strong><br>${error.message}</span>`;
+            }
+        }
+
+        // 페이지 로드 후 초기화 시작
+        window.addEventListener('load', () => {
+            setTimeout(initializeData, 1000);
+        });
+    </script>
+</body>
+
+</html>

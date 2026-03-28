@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>연가 관리 시스템</title>
+
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js"></script>
+</head>
+
+<body>
+    <!-- 로그인 화면 -->
+    <div id="loginScreen" class="login-screen">
+        <div class="login-card">
+            <h1>연가 관리</h1>
+            <p>회사의 연가 일정을 효율적으로 관리하세요</p>
+
+            <div class="form-group">
+                <label>이름</label>
+                <input type="text" id="nameInput" placeholder="이름을 입력하세요">
+            </div>
+
+            <div class="form-group">
+                <label>역할</label>
+                <select id="roleSelect">
+                    <option value="employee">일반 직원</option>
+                    <option value="admin">관리자</option>
+                </select>
+            </div>
+
+            <button class="login-btn" onclick="login()">로그인</button>
+        </div>
+    </div>
+
+    <!-- 메인 앱 -->
+    <div id="app" class="app">
+        <!-- 헤더 -->
+        <div class="header">
+            <h1>📅 연가 관리 시스템</h1>
+            <div class="header-info">
+                <div class="user-info">
+                    <div class="user-name" id="currentUserName">-</div>
+                    <div class="user-role" id="currentUserRole">-</div>
+                </div>
+                <button class="logout-btn" onclick="logout()">로그아웃</button>
+            </div>
+        </div>
+
+        <!-- 메인 컨테이너 -->
+        <div class="main-container">
+            <!-- 탭 -->
+            <div class="tabs" id="adminTabs" style="display: none;">
+                <button class="tab-btn active" onclick="switchTab('calendar')">📅 캘린더</button>
+                <button class="tab-btn" onclick="switchTab('settings')">⚙️ 설정</button>
+            </div>
+
+            <!-- 캘린더 탭 -->
+            <div id="calendarTab" class="tab-content active">
+                <div class="calendar-container">
+                    <div class="calendar-header">
+                        <h2>연가 캘린더</h2>
+                        <div class="calendar-controls">
+                            <div class="calendar-nav">
+                                <button class="nav-btn" onclick="previousMonth()">← 이전</button>
+                                <div class="month-year" id="monthYear"></div>
+                                <button class="nav-btn" onclick="nextMonth()">다음 →</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="weekdays">
+                        <div class="weekday">일</div>
+                        <div class="weekday">월</div>
+                        <div class="weekday">화</div>
+                        <div class="weekday">수</div>
+                        <div class="weekday">목</div>
+                        <div class="weekday">금</div>
+                        <div class="weekday">토</div>
+                    </div>
+
+                    <div class="days" id="calendar"></div>
+                </div>
+            </div>
+
+            <!-- 설정 탭 -->
+            <div id="settingsTab" class="tab-content">
+                <div class="settings-page">
+                    <div style="margin-bottom: 20px;">
+                        <h3 style="color: #333; margin-bottom: 15px;">일자별 최대 인원 설정</h3>
+                        <div class="settings-grid" id="settingsGrid">
+                            <div class="add-date-setting" onclick="addDateSetting()">
+                                <div style="font-size: 28px; margin-bottom: 8px;">+</div>
+                                <div style="color: #667eea; font-weight: 600;">일자 추가</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 연가 모달 -->
+    <div id="leaveModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span id="modalDateTitle">-</span>
+                <button class="close-btn" onclick="closeModal()">×</button>
+            </div>
+
+            <div id="adminView" style="display: none;">
+                <div class="employee-selection">
+                    <label class="employee-label">직원 선택</label>
+                    <input type="text" id="employeeSearch" class="employee-search" placeholder="🔍 직원 이름으로 검색...">
+                    <div class="employee-list" id="employeeList"></div>
+                </div>
+
+                <div class="leave-list">
+                    <div class="leave-list-title">현재 연가자</div>
+                    <div class="leave-items" id="leaveItems">
+                        <div class="empty-state">
+                            <p>아직 등록된 연가자가 없습니다</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="button-group">
+                    <button class="save-btn" onclick="saveLeave()">저장</button>
+                    <button class="cancel-btn" onclick="closeModal()">취소</button>
+                </div>
+            </div>
+
+            <div id="employeeView" style="display: none;">
+                <div class="reason-selection">
+                    <label class="reason-label">휴가 사유 선택</label>
+                    <div class="reason-options" id="reasonOptions"></div>
+                </div>
+
+                <div class="employee-selection">
+                    <label class="employee-label">신청 현황</label>
+                    <div style="padding: 20px; text-align: center; color: #666;">
+                        <p style="margin-bottom: 10px;" id="employeeCurrentStatus">-</p>
+                        <button class="save-btn" style="margin-top: 20px; width: 100%;" id="toggleLeaveBtn"
+                            onclick="toggleEmployeeLeave()">연가 신청</button>
+                    </div>
+                </div>
+
+                <div class="button-group">
+                    <button class="cancel-btn" style="flex: 1;" onclick="closeModal()">닫기</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+
+        // // Import the functions you need from the SDKs you need
+        // import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+        // import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-analytics.js";
+        // // TODO: Add SDKs for Firebase products that you want to use
+        // // https://firebase.google.com/docs/web/setup#available-libraries
+
+        // // Your web app's Firebase configuration
+        // // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+        // const firebaseConfig = {
+        //     apiKey: "AIzaSyA7cs9Zyl13eKOkXLxdNo11r8ssumt4HM0",
+        //     authDomain: "leave-management-app-2c39c.firebaseapp.com",
+        //     projectId: "leave-management-app-2c39c",
+        //     storageBucket: "leave-management-app-2c39c.firebasestorage.app",
+        //     messagingSenderId: "251474038020",
+        //     appId: "1:251474038020:web:40ae643885cffedde01451",
+        //     measurementId: "G-ET8740QEVM",
+        //     databaseUrl: "https://leave-management-app-2c39c-default-rtdb.asia-southeast1.firebasedatabase.app/"
+        // };
+
+        // // Initialize Firebase
+        // const analytics = getAnalytics(app);
+        // firebase.initializeApp(firebaseConfig);
+        // const db = firebase.firestore();
+
+
+
+
+        let currentDate = new Date();
+        let selectedDate = null;
+        let currentUser = null;
+        let leaves = {}; // { 'YYYY-MM-DD': { 'name1': 'reason1', 'name2': 'reason2' } }
+        let maxCapacity = {}; // { 'YYYY-MM-DD': 3 }
+        let employees = [
+            '김철수', '최지은', '박민수', '이영희', '정다은',
+            '양준호', '신지수', '윤소연', '한준형', '조은미'
+        ];
+
+        const defaultMaxCapacity = 3;
+
+        const leaveReasons = [
+            { value: 'annual', label: '연가', color: '#667eea' },
+            { value: 'special', label: '특별휴가', color: '#10b981' },
+            { value: 'education', label: '교육', color: '#f59e0b' }
+        ];
+
+        let selectedReason = 'annual';
+
+        function login() {
+            const name = document.getElementById('nameInput').value.trim();
+            const role = document.getElementById('roleSelect').value;
+
+            if (!name) {
+                alert('이름을 입력하세요');
+                return;
+            }
+
+            currentUser = { name, role };
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('app').classList.add('active');
+            document.getElementById('currentUserName').textContent = name;
+            document.getElementById('currentUserRole').textContent = role === 'admin' ? '관리자' : '직원';
+
+            if (role === 'admin') {
+                document.getElementById('adminTabs').style.display = 'flex';
+            }
+
+            renderCalendar();
+            updateSettingsGrid();
+        }
+
+        function logout() {
+            currentUser = null;
+            document.getElementById('loginScreen').style.display = 'flex';
+            document.getElementById('app').classList.remove('active');
+            document.getElementById('nameInput').value = '';
+        }
+
+        function renderCalendar() {
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+
+            const monthNames = [
+                '1월', '2월', '3월', '4월', '5월', '6월',
+                '7월', '8월', '9월', '10월', '11월', '12월'
+            ];
+            document.getElementById('monthYear').textContent = `${year}년 ${monthNames[month]}`;
+
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+            let html = '';
+
+            // Previous month days
+            for (let i = firstDay - 1; i >= 0; i--) {
+                html += `<div class="day other-month"><div class="day-content"><div class="day-number">${daysInPrevMonth - i}</div></div></div>`;
+            }
+
+            // Current month days
+            const today = new Date();
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const isToday = day === today.getDate() &&
+                    month === today.getMonth() &&
+                    year === today.getFullYear();
+                const isSelected = selectedDate && selectedDate === dateStr;
+
+                const leaveData = leaves[dateStr] || {};
+                const leaveCount = Object.keys(leaveData).length;
+                const capacity = maxCapacity[dateStr] || defaultMaxCapacity;
+
+                let classes = 'day';
+                if (isToday) classes += ' today';
+                if (isSelected) classes += ' selected';
+
+                // 토울팁용 정보 만들기
+                let tooltipText = '';
+                if (leaveCount > 0) {
+                    const names = Object.keys(leaveData).slice(0, 3);
+                    tooltipText = names.join(', ');
+                    if (leaveCount > 3) tooltipText += ` 외 ${leaveCount - 3}명`;
+                }
+
+                // 연가자 정보 생성
+                let leaveItemsHtml = '';
+                const leaveEntries = Object.entries(leaveData);
+                leaveEntries.slice(0, 3).forEach(([name, reason]) => {
+                    const reasonLabel = leaveReasons.find(r => r.value === reason)?.label || reason;
+                    leaveItemsHtml += `<div class="leave-badge ${reason}">${name}</div>`;
+                });
+                if (leaveEntries.length > 3) {
+                    leaveItemsHtml += `<div class="leave-more">+${leaveEntries.length - 3}명</div>`;
+                }
+
+                html += `<div class="${classes}" onclick="selectDate('${dateStr}')">
+                    <div class="day-content">
+                        <div class="day-number">${day}</div>
+                        <div class="day-count">${leaveCount}/${capacity}</div>
+                    </div>
+                    ${leaveCount > 0 ? `<div class="day-leaves">${leaveItemsHtml}</div>` : ''}
+                </div>`;
+            }
+
+            // Next month days
+            const totalCells = Math.ceil((firstDay + daysInMonth) / 7) * 7;
+            for (let day = 1; day <= totalCells - firstDay - daysInMonth; day++) {
+                html += `<div class="day other-month"><div class="day-content"><div class="day-number">${day}</div></div></div>`;
+            }
+
+            document.getElementById('calendar').innerHTML = html;
+        }
+
+        function selectDate(dateStr) {
+            selectedDate = dateStr;
+            renderCalendar();
+            openModal();
+        }
+
+        function openModal() {
+            if (!selectedDate) return;
+
+            const date = new Date(selectedDate + 'T00:00:00');
+            const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+            const dateStr = date.toLocaleDateString('ko-KR', options);
+            document.getElementById('modalDateTitle').textContent = dateStr;
+
+            if (currentUser.role === 'admin') {
+                showAdminView();
+            } else {
+                showEmployeeView();
+            }
+
+            document.getElementById('leaveModal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('leaveModal').classList.remove('active');
+            selectedDate = null;
+        }
+
+        function showAdminView() {
+            document.getElementById('adminView').style.display = 'block';
+            document.getElementById('employeeView').style.display = 'none';
+
+            // 검색 기능 추가
+            document.getElementById('employeeSearch').value = '';
+            document.getElementById('employeeSearch').addEventListener('input', filterEmployees);
+
+            renderEmployeeList();
+            updateLeaveItems();
+        }
+
+        function filterEmployees() {
+            const searchValue = document.getElementById('employeeSearch').value.toLowerCase();
+            const items = document.querySelectorAll('.employee-item');
+            items.forEach(item => {
+                const name = item.querySelector('.employee-name').textContent.toLowerCase();
+                if (name.includes(searchValue)) {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }
+
+        function renderEmployeeList() {
+            // 직원 목록 표시
+            let html = '';
+            employees.forEach(emp => {
+                const leaveData = leaves[selectedDate] || {};
+                const isSelected = leaveData[emp];
+                const reason = isSelected ? leaveData[emp] : 'annual';
+                const reasonLabel = leaveReasons.find(r => r.value === reason)?.label || '';
+
+                html += `
+                    <label class="employee-item">
+                        <input type="checkbox" value="${emp}" ${isSelected ? 'checked' : ''} onchange="updateEmployeeReason('${emp}')">
+                        <div class="employee-item-content">
+                            <span class="employee-name">${emp}</span>
+                            <select class="reason-select" id="reason-${emp}" onchange="updateEmployeeReason('${emp}')">
+                                <option value="annual">연가</option>
+                                <option value="special">특별휴가</option>
+                                <option value="education">교육</option>
+                            </select>
+                        </div>
+                    </label>
+                `;
+            });
+            document.getElementById('employeeList').innerHTML = html;
+
+            // 선택된 직원의 사유를 드롭다운에 반영
+            const leaveData = leaves[selectedDate] || {};
+            employees.forEach(emp => {
+                const reasonSelect = document.getElementById(`reason-${emp}`);
+                if (reasonSelect && leaveData[emp]) {
+                    reasonSelect.value = leaveData[emp];
+                }
+            });
+        }
+
+        function updateEmployeeReason(emp) {
+            if (!leaves[selectedDate]) {
+                leaves[selectedDate] = {};
+            }
+            const checkbox = document.querySelector(`input[value="${emp}"]`);
+            const reasonSelect = document.getElementById(`reason-${emp}`);
+
+            if (checkbox.checked) {
+                leaves[selectedDate][emp] = reasonSelect.value;
+            } else {
+                delete leaves[selectedDate][emp];
+            }
+            updateLeaveItems();
+        }
+
+        function showEmployeeView() {
+            document.getElementById('adminView').style.display = 'none';
+            document.getElementById('employeeView').style.display = 'block';
+
+            // 휴가 사유 옵션 표시
+            let reasonHtml = '';
+            leaveReasons.forEach(reason => {
+                reasonHtml += `
+                    <label class="reason-option">
+                        <input type="radio" name="leaveReason" value="${reason.value}" ${selectedReason === reason.value ? 'checked' : ''} onchange="selectedReason = this.value">
+                        <div>
+                            <span class="reason-option-text">${reason.label}</span>
+                        </div>
+                    </label>
+                `;
+            });
+            document.getElementById('reasonOptions').innerHTML = reasonHtml;
+
+            const leaveData = leaves[selectedDate] || {};
+            const isOnLeave = currentUser.name in leaveData;
+            const leaveCount = Object.keys(leaveData).length;
+            const capacity = maxCapacity[selectedDate] || defaultMaxCapacity;
+
+            const btn = document.getElementById('toggleLeaveBtn');
+            if (isOnLeave) {
+                btn.textContent = '연가 취소';
+                btn.style.background = '#ef4444';
+                const reasonLabel = leaveReasons.find(r => r.value === leaveData[currentUser.name])?.label || '';
+                document.getElementById('employeeCurrentStatus').innerHTML = `<strong>✓ 연가 중입니다</strong><br><span style="font-size: 12px; color: #666;">사유: ${reasonLabel}</span>`;
+            } else {
+                btn.textContent = '연가 신청';
+                btn.style.background = '#667eea';
+                if (leaveCount >= capacity) {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.5';
+                    btn.style.cursor = 'not-allowed';
+                    document.getElementById('employeeCurrentStatus').innerHTML = `<span style="color: #ef4444;">최대 인원에 도달했습니다 (${leaveCount}/${capacity})</span>`;
+                } else {
+                    btn.disabled = false;
+                    btn.style.opacity = '1';
+                    btn.style.cursor = 'pointer';
+                    document.getElementById('employeeCurrentStatus').innerHTML = `현재 인원: ${leaveCount}/${capacity}명`;
+                }
+            }
+        }
+
+        function updateLeaveItems() {
+            const leaveData = leaves[selectedDate] || {};
+            const employees = Object.keys(leaveData);
+
+            if (employees.length === 0) {
+                document.getElementById('leaveItems').innerHTML = '<div class="empty-state"><p>아직 등록된 연가자가 없습니다</p></div>';
+            } else {
+                let html = '';
+                employees.forEach(emp => {
+                    const reasonLabel = leaveReasons.find(r => r.value === leaveData[emp])?.label || '';
+                    html += `
+                        <div class="leave-item">
+                            <div>
+                                <span class="leave-item-name">${emp}</span>
+                                <div class="employee-reason">${reasonLabel}</div>
+                            </div>
+                        </div>
+                    `;
+                });
+                document.getElementById('leaveItems').innerHTML = html;
+            }
+        }
+
+        function saveLeave() {
+            const capacity = maxCapacity[selectedDate] || defaultMaxCapacity;
+            const leaveData = leaves[selectedDate] || {};
+
+            if (Object.keys(leaveData).length > capacity) {
+                alert(`최대 인원(${capacity}명)을 초과할 수 없습니다`);
+                return;
+            }
+
+            if (Object.keys(leaveData).length === 0) {
+                delete leaves[selectedDate];
+            }
+
+            renderCalendar();
+            closeModal();
+        }
+
+        function toggleEmployeeLeave() {
+            if (!leaves[selectedDate]) {
+                leaves[selectedDate] = {};
+            }
+
+            const leaveData = leaves[selectedDate];
+            const capacity = maxCapacity[selectedDate] || defaultMaxCapacity;
+            const leaveCount = Object.keys(leaveData).length;
+
+            if (currentUser.name in leaveData) {
+                delete leaveData[currentUser.name];
+            } else {
+                if (leaveCount >= capacity) {
+                    alert(`최대 인원(${capacity}명)에 도달했습니다`);
+                    return;
+                }
+                leaveData[currentUser.name] = selectedReason;
+            }
+
+            if (Object.keys(leaveData).length === 0) {
+                delete leaves[selectedDate];
+            }
+
+            renderCalendar();
+            showEmployeeView();
+        }
+
+        function previousMonth() {
+            currentDate.setMonth(currentDate.getMonth() - 1);
+            renderCalendar();
+        }
+
+        function nextMonth() {
+            currentDate.setMonth(currentDate.getMonth() + 1);
+            renderCalendar();
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+
+            if (tab === 'calendar') {
+                document.getElementById('calendarTab').classList.add('active');
+                document.querySelectorAll('.tab-btn')[0].classList.add('active');
+            } else {
+                document.getElementById('settingsTab').classList.add('active');
+                document.querySelectorAll('.tab-btn')[1].classList.add('active');
+            }
+        }
+
+        function updateSettingsGrid() {
+            let html = '';
+
+            // 기존 설정된 날짜들
+            Object.keys(maxCapacity).forEach(dateStr => {
+                html += `
+                    <div class="date-setting-card">
+                        <div class="date-setting-card-header" id="dateHeader-${dateStr}">${formatDateForCard(dateStr)}</div>
+                        <div class="date-setting-card-content">
+                            <div class="date-input-group">
+                                <input type="number" id="capacity-${dateStr}" value="${maxCapacity[dateStr]}" min="1">
+                                <button onclick="updateDateCapacity('${dateStr}')">변경</button>
+                            </div>
+                            <button class="date-setting-remove" onclick="removeDateSetting('${dateStr}')">삭제</button>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += `
+                <div class="add-date-setting" onclick="addDateSetting()">
+                    <div style="font-size: 28px; margin-bottom: 8px;">+</div>
+                    <div style="color: #667eea; font-weight: 600;">일자 추가</div>
+                </div>
+            `;
+
+            document.getElementById('settingsGrid').innerHTML = html;
+        }
+
+        function formatDateForCard(dateStr) {
+            const date = new Date(dateStr + 'T00:00:00');
+            return date.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
+        }
+
+        function addDateSetting() {
+            const dateStr = prompt('날짜를 입력하세요 (YYYY-MM-DD 형식):');
+            if (!dateStr) return;
+
+            const regex = /^\d{4}-\d{2}-\d{2}$/;
+            if (!regex.test(dateStr)) {
+                alert('올바른 날짜 형식이 아닙니다. (YYYY-MM-DD)');
+                return;
+            }
+
+            if (maxCapacity[dateStr]) {
+                alert('이미 설정된 날짜입니다.');
+                return;
+            }
+
+            maxCapacity[dateStr] = defaultMaxCapacity;
+            updateSettingsGrid();
+            renderCalendar();
+        }
+
+        function updateDateCapacity(dateStr) {
+            const value = parseInt(document.getElementById(`capacity-${dateStr}`).value);
+            if (value < 1) {
+                alert('최소 1명 이상이어야 합니다');
+                return;
+            }
+            maxCapacity[dateStr] = value;
+            renderCalendar();
+        }
+
+        function removeDateSetting(dateStr) {
+            if (confirm('이 날짜 설정을 삭제하시겠습니까?')) {
+                delete maxCapacity[dateStr];
+                updateSettingsGrid();
+                renderCalendar();
+            }
+        }
+
+        // 초기화
+        renderCalendar();
+    </script>
+</body>
+
+</html>

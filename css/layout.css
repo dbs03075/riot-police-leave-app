@@ -1,0 +1,135 @@
+/* ========================================
+   메인 앱
+   ======================================== */
+
+.app {
+    display: none;
+    width: 100%;
+    min-height: 100vh;
+    background-color: var(--color-background);
+}
+
+.app.active {
+    display: flex;
+    flex-direction: column;
+}
+
+/* ========================================
+   헤더
+   ======================================== */
+
+.header {
+    background: var(--color-surface);
+    padding: var(--space-20) var(--space-32);
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid var(--color-primary);
+}
+
+.header h1 {
+    color: var(--color-primary);
+    font-size: var(--font-size-3xl);
+    font-weight: var(--font-weight-semibold);
+    letter-spacing: var(--letter-spacing-tight);
+}
+
+.header-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-20);
+}
+
+.user-info {
+    text-align: right;
+}
+
+.user-name {
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text);
+    font-size: var(--font-size-base);
+}
+
+.user-role {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.logout-btn {
+    padding: var(--space-8) var(--space-16);
+    background: var(--color-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text);
+    transition: all var(--duration-normal) var(--ease-standard);
+}
+
+.logout-btn:hover {
+    background: var(--color-error);
+    color: var(--color-cream-50);
+    border-color: var(--color-error);
+}
+
+.logout-btn:focus-visible {
+    outline: var(--focus-outline);
+    box-shadow: var(--focus-ring);
+}
+
+/* ========================================
+   메인 컨테이너
+   ======================================== */
+
+.main-container {
+    flex: 1;
+    padding: var(--space-32);
+    overflow-y: auto;
+}
+
+/* ========================================
+   탭
+   ======================================== */
+
+.tabs {
+    display: flex;
+    gap: var(--space-10);
+    margin-bottom: var(--space-32);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.tab-btn {
+    padding: var(--space-12) var(--space-20);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-secondary);
+    transition: all var(--duration-normal) var(--ease-standard);
+    font-size: var(--font-size-md);
+}
+
+.tab-btn:hover {
+    color: var(--color-primary);
+}
+
+.tab-btn.active {
+    color: var(--color-primary);
+    border-bottom-color: var(--color-primary);
+}
+
+.tab-btn:focus-visible {
+    outline: var(--focus-outline);
+    outline-offset: var(--space-2);
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}

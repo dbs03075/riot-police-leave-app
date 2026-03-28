@@ -1,0 +1,283 @@
+/* ========================================
+   캘린더
+   ======================================== */
+
+.calendar-container {
+    background: var(--color-surface);
+    padding: var(--space-32);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--color-card-border);
+}
+
+.calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-32);
+}
+
+.calendar-header h2 {
+    color: var(--color-primary);
+    font-size: var(--font-size-2xl);
+    font-weight: var(--font-weight-semibold);
+    letter-spacing: var(--letter-spacing-tight);
+}
+
+.calendar-controls {
+    display: flex;
+    gap: var(--space-16);
+    align-items: center;
+}
+
+.calendar-nav {
+    display: flex;
+    align-items: center;
+    gap: var(--space-16);
+}
+
+.nav-btn {
+    padding: var(--space-8) var(--space-12);
+    background: var(--color-primary);
+    color: var(--color-btn-primary-text);
+    border: none;
+    border-radius: var(--radius-base);
+    cursor: pointer;
+    font-weight: var(--font-weight-semibold);
+    transition: all var(--duration-normal) var(--ease-standard);
+    font-size: var(--font-size-sm);
+    box-shadow: var(--shadow-inset-sm);
+}
+
+.nav-btn:hover {
+    background: var(--color-primary-hover);
+}
+
+.nav-btn:active {
+    background: var(--color-primary-active);
+}
+
+.nav-btn:focus-visible {
+    outline: var(--focus-outline);
+    box-shadow: var(--focus-ring);
+}
+
+.team-quota-memo {
+    font-size: 10px;
+    color: #E74C3C;
+    font-weight: bold;
+    margin-left: 5px;
+}
+
+.month-year {
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text);
+    min-width: 150px;
+    text-align: center;
+    font-size: var(--font-size-lg);
+}
+
+/* ========================================
+   캘린더 그리드
+   ======================================== */
+
+.weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: var(--space-8);
+    margin-bottom: var(--space-16);
+}
+
+.weekday {
+    text-align: center;
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text);
+    padding: var(--space-10);
+    font-size: var(--font-size-sm);
+}
+
+.weekday:nth-child(1),
+.weekday:nth-child(7) {
+    color: var(--color-error);
+    background: rgba(var(--color-error-rgb), 0.05);
+    border-radius: var(--radius-sm);
+}
+
+.days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: var(--space-8);
+}
+
+.day {
+    min-height: 100px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+    padding: var(--space-8);
+    cursor: pointer;
+    transition: all var(--duration-normal) var(--ease-standard);
+    overflow: hidden;
+    position: relative;
+}
+
+.day:hover:not(.other-month) {
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+}
+
+.day.other-month {
+    background: var(--color-secondary);
+    cursor: default;
+    opacity: 0.5;
+}
+
+.day.today {
+    background: rgba(var(--color-primary-rgb), 0.05);
+    border: 2px solid var(--color-primary);
+    font-weight: var(--font-weight-semibold);
+}
+
+.day.selected {
+    border-color: var(--color-primary);
+}
+
+
+.day:nth-child(7n),
+.day:nth-child(7n+1) {
+    background: rgba(var(--color-error-rgb), 0.02);
+}
+
+.day.today:nth-child(7n),
+.day.today:nth-child(7n+1) {
+    background: rgba(var(--color-primary-rgb), 0.05);
+}
+
+/* ========================================
+   날짜 셀 내부
+   ======================================== */
+
+.day-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-2);
+}
+
+.day-number {
+    font-weight: var(--font-weight-semibold);
+    font-size: var(--font-size-sm);
+    color: inherit;
+}
+
+.day-count {
+    font-size: var(--font-size-xs);
+    background: rgba(var(--color-primary-rgb), 0.1);
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-primary);
+    transition: all var(--duration-fast) var(--ease-standard);
+}
+
+.day-count:hover {
+    background: var(--color-primary);
+    color: var(--color-btn-primary-text);
+}
+
+.day.selected .day-count {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.day-leaves {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    flex: 1;
+    overflow: hidden;
+}
+
+/* ========================================
+   연가 배지
+   ======================================== */
+
+.leave-badge {
+    font-size: var(--font-size-xs);
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-sm);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: var(--font-weight-semibold);
+    text-align: center;
+}
+
+.leave-badge.annual {
+    background: var(--color-bg-1);
+    color: var(--color-primary);
+    border: 1px solid rgba(var(--color-primary-rgb), 0.2);
+}
+
+.leave-badge.special {
+    background: var(--color-bg-5);
+    color: var(--color-warning);
+    border: 1px solid rgba(var(--color-warning-rgb), 0.2);
+}
+
+.leave-badge.education {
+    background: var(--color-bg-3);
+    color: var(--color-success);
+    border: 1px solid rgba(var(--color-success-rgb), 0.2);
+}
+
+.leave-badge.out_of_area_travel {
+    background: var(--color-bg-4);
+    color: var(--color-success);
+    border: 1px solid rgba(var(--color-success-rgb), 0.2);
+}
+
+.leave-badge.compensatory_rest {
+    background: var(--color-bg-2);
+    color: var(--color-success);
+    border: 1px solid rgba(var(--color-success-rgb), 0.2);
+}
+
+.leave-badge.personal_duty {
+    background: #fed7aa;
+    color: #92400e;
+    font-weight: bold;
+}
+
+.leave-badge.multi_duty {
+    background: #fbcfe8;
+    color: #831843;
+    font-weight: bold;
+}
+
+.leave-badge.personal_rest {
+    background: #ffedd5;
+    color: #7c2d12;
+    font-weight: bold;
+}
+
+.leave-badge.multi_rest {
+    background: #fce7f3;
+    color: #831843;
+    font-weight: bold;
+}
+
+.leave-badge.sick {
+    background: #fef3c7;
+    color: #92400e;
+    font-weight: bold;
+}
+
+.leave-more {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    font-weight: var(--font-weight-semibold);
+    text-align: center;
+}

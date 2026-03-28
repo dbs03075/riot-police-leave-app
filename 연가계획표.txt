@@ -1,0 +1,96 @@
+새로운 탭을 만들기 보다는 
+
+하단에 추가하는게 더 쉬움.
+
+1. 당직자 및 당직휴무 고르기 추가.
+2. 자동으로 db에 연가자랑 같이 들어가게 해보자
+--- 여기 까지 완료 --- 
+3. maxCapacity 내부에 안 들어가게 만들기 (다당, 다당휴무, 등)
+3. css 수정해서 보여질 때 당직 관련은 하단으로 모이도록 -> 모달 수정
+4. css 위에꺼랑 똑같이 깔끔하게 수정
+5. 화이트배경으로 수정하기. 
+
+config.js → Firebase 초기화
+// 📌 Firebase Firestore 구조 (자동 생성됨)
+// employees/
+//   ├── {uid}/
+//   │   ├── email: "user@example.com"
+//   │   ├── name: "김철수"
+//   │   ├── role: "admin" 또는 "employee"
+//   │   └── createdAt: timestamp
+//
+// leaves/
+//   ├── {date}/
+//   │   ├── date: "2026-03-08"
+//   │   ├── employees: { "김철수": "annual(leaveReasons)", "이영희": "special" }
+//   │   └── updatedAt: timestamp
+//
+// settings/
+//   └── maxCapacity/
+//       ├── "2026-03-10": 3
+//       ├── "2026-03-15": 2
+//       └── ...
+
+  ↓
+auth.js → 로그인
+  ↓  
+firebase-sync.js → DB 로드 (loadLeavesFromFirebase()) // 들고오고, 저장하는 함수 
+  ↓
+calendar.js → renderCalendar() 실행
+  ↓
+modal.js → 모달 열기/저장
+
+// tip. 연가 종류 추가.
+config -> leave-management 
+config. leaveReasons에 추가 
+leave-management renderEmployList에 추가
+- 당직 관련되어 있으면 dutResasons에 넣기(이건 추후 수정 필요 firebase, calendar에 있음.)
+
+캘린더 89에서 마무리함. 
+한 일 
+제한 숫자에 카운팅 되지 않도록 한 것. 
+당직 관련된 인원을 하단으로 보낸 것.(이건 수정 해서 일자로 만들어야 함.)
+모바일 창에서도 잘 보이도록 수정
+1. 관외 추가 
+3. 대휴 추가
+
+할 일. 
+2. 특가, 교육 경우 옆에 사유 적기
+4. 대휴 옆에 사유 적기
+- 맵 키 밸류로 되어 잇는데 
+- leaves 
+2026-03-02
+: 
+{박준호: 'annual', 이영희: 'annual', 윤성준: 'annual'}
+2026-03-03
+: 
+{윤성준: 'out_of_area_travel', 박준호: 'annual', 이영희: 'annual'}
+2026-03-04
+: 
+{이영희: 'annual', 박준호: 'annual', 최민지: 'annual'}
+2026-03-05
+: 
+{박준호: 'annual', 이영희: 'special', 최민지: 'annual'}
+- 밸류를 {label : 'annual', reason : '육아'}로 수정하고
+
+<입력>
+
+<현출>
+- 보여줄 때 특정 라벨 특별휴가, 교육, (병가,) 대체휴무의 경우에만
+- (특별휴가, 사유) 이렇게 나오도록 수정
+
+7. 제대별로 나누기
+7. 비밀번호 설정하는거 어떻게 하는지 다시 확인(파이어베이스 auth 칸에도 적어야됨)
+6. 다당 당직 누구인지 쉽게 보게(오류 1. 개인당직 조금 더 잘 보이게)
+4. 사고자 사유 칸이 너무 작아 넓혀야 함.
+5. 팀별 사고자 넣기.
+----------------------------------<한 일>----------------
+
+
+
+7.  회원가입도 만들어야됨
+8. 당직 다당 표시하기 
+9. 당직팀 표시
+
+
+-------이제 링크로 만들어서 접속하기 ----- 
