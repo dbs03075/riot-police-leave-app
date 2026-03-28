@@ -41,30 +41,48 @@ async function saveLeave() {
             updatedBy: (currentUser && currentUser.name) || 'Unknown'
         };
 
-        if (Object.keys(leaveData).length === 0) {
-            // 해당 일자의 연가자 데이터 완전 삭제
-            updateData[`days.${day}`] = firebase.firestore.FieldValue.delete();
-        } else {
-            // 해당 일자의 연가자 데이터 완전 교체 (이전 데이터 영향 삭제)
-            updateData[`days.${day}`] = leaveData;
-        }
+        // ⚠️ [핵심] 영화관 좌석처럼 충돌 방지를 위한 정밀 업데이트 (Granular Update)
+        // 1. 추가되거나 수정된 사람만 찾기
+        Object.keys(editingLeaves).forEach(empName => {
+            const currentEdit = editingLeaves[empName];
+            const original = originalLeaves[empName];
+            
+            // 원본에 없거나 데이터가 바뀐 경우만 전송
+            if (JSON.stringify(currentEdit) !== JSON.stringify(original)) {
+                updateData[`days.${day}.${empName}`] = currentEdit;
+            }
+        });
+
+        // 2. 삭제(취소)된 사람만 찾기
+        Object.keys(originalLeaves).forEach(empName => {
+            if (!editingLeaves[empName]) {
+                updateData[`days.${day}.${empName}`] = firebase.firestore.FieldValue.delete();
+            }
+        });
 
         try {
-            // ⚠️ 1. 먼저 문서를 생성(또는 기본값 업데이트)하여 문가 존재하는지 확인
-            await db.collection('leaves').doc(docId).set({
-                unit: selectedUnit,
-                month: yearMonth
-            }, { merge: true });
-
-            // ⚠️ 2. update와 dot-notation([`days.${day}`])을 써서 해당 일자 필드만 '전면 교체'
-            await db.collection('leaves').doc(docId).update(updateData);
+            // ⚠️ 변경 사항이 하나라도 있을 때만 DB 작업 수행 (불필요 트래픽 방지)
+            const changes = Object.keys(updateData).filter(k => k.startsWith('days.'));
             
-            // 전역 메모리 업데이트
-            if (Object.keys(leaveData).length === 0) {
+            if (changes.length > 0) {
+                // 문서가 없을 수도 있으니 기본 틀부터 생성(있는 경우 그대로 둠)
+                await db.collection('leaves').doc(docId).set({
+                    unit: selectedUnit,
+                    month: yearMonth
+                }, { merge: true });
+
+                // 정밀하게 딱 바뀐 필드(사람)만 업데이트! (여기서 충돌이 방지됨)
+                await db.collection('leaves').doc(docId).update(updateData);
+            }
+            
+            // 전역 메모리 최신화 (성공 시에만)
+            if (Object.keys(editingLeaves).length === 0) {
                 delete leaves[selectedDate];
             } else {
-                leaves[selectedDate] = JSON.parse(JSON.stringify(leaveData));
+                leaves[selectedDate] = JSON.parse(JSON.stringify(editingLeaves));
             }
+            
+            console.log('✓ 정밀 업데이트가 서버에 반영되었습니다:', changes.length, '명 변경');
         } catch (error) {
             throw error;
         }

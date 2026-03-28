@@ -28,7 +28,7 @@ let teamQuotas = {};
 let employees = [];  // DB에서 로드됨
 
 // 제대(Unit) 설정
-const units = ['1제대', '2제대', '3제대'];
+const units = ['1제대', '2제대', '3제대', 'test'];
 let selectedUnit = '1제대';
 
 const leaveReasons = [
@@ -44,7 +44,7 @@ const leaveReasons = [
     { value: 'compensatory_rest', label: '대체휴무', color: '#831843' },
 ];
 
-const defaultMaxCapacity = 3;
+const defaultMaxCapacity = 4;
 let selectedDate = null;
 let currentDate = new Date();
 let selectedReason = 'annual';

@@ -15,10 +15,12 @@ function onReasonChange(value) {
 function openModal() {
     if (!selectedDate) return;
     
-    // ⚠️ 실시간 동기화와 충돌을 방지하기 위해 현재 연가 상태를 깊은 복사하여 '편집용'으로 따로 관리
-    editingLeaves = JSON.parse(JSON.stringify(leaves[selectedDate] || {}));
+    // ⚠️ 편집 시작 시점의 원본 데이터를 깊복사해서 보관 (영화관 예약처럼 변경 사항만 반영하기 위함)
+    const currentData = leaves[selectedDate] || {};
+    originalLeaves = JSON.parse(JSON.stringify(currentData));
+    editingLeaves = JSON.parse(JSON.stringify(currentData));
     
-    isModalEditing = true; // ⚠️ 편집 모드 시작 (동기화 덮어쓰기 방지)
+    isModalEditing = true;
 
     // 상위 날짜 표시
     const date = new Date(selectedDate + 'T00:00:00');

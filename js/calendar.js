@@ -102,6 +102,15 @@ function renderCalendar() {
                 individualEntries.push({ name, val, detail, team });
             }
         });
+        
+        // ⚠️ [추가] 팀 번호 순서대로 정렬 (1팀 -> 2팀 -> ... -> 9팀)
+        individualEntries.sort((a, b) => {
+            const getTeamNum = (teamName) => {
+                const num = parseInt(teamName.replace(/[^0-9]/g, '')); // 숫자만 추출
+                return isNaN(num) ? 999 : num; // 숫자가 없으면 맨 뒤로
+            };
+            return getTeamNum(a.team) - getTeamNum(b.team);
+        });
 
         // 3. 렌더링 할당 (최대 10개 배지 제한)
         let totalDisplayItems = 0;
