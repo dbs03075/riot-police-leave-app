@@ -13,9 +13,10 @@ async function saveLeave() {
     // 당직 관련 reason들
     const dutyReasons = ['personal_duty', 'personal_rest', 'multi_duty', 'multi_rest'];
 
-    const leaveData = leaves[selectedDate] || {};
-    console.log(leaveData);
-    // 정원(capacity) 계산에서 당직은 제외한 인원만 센다
+    // ⚠️ 저장 시에는 편집 중인 고유 데이터(editingLeaves)를 사용함
+    const leaveData = editingLeaves || {}; 
+    console.log("저장 시도 데이터:", leaveData);
+
     const capacity = maxCapacity[selectedDate] || defaultMaxCapacity;
     const nonDutyCount = Object.values(leaveData)
         .filter(reason => {
@@ -35,28 +36,37 @@ async function saveLeave() {
         const yearMonth = `${year}-${month}`;
         const docId = `${selectedUnit}_${yearMonth}`;
 
+        const updateData = {
+            updatedAt: new Date().toISOString(),
+            updatedBy: (currentUser && currentUser.name) || 'Unknown'
+        };
+
         if (Object.keys(leaveData).length === 0) {
-            // 연가자가 없으면 해당 날짜 필드 삭제
-            await db.collection('leaves').doc(docId).update({
-                [`days.${day}`]: firebase.firestore.FieldValue.delete(),
-                updatedAt: new Date().toISOString(),
-                updatedBy: currentUser.name
-            }).catch(error => {
-                if (error.code !== 'not-found') throw error; // 문서가 아예 없으면 무시
-            });
-            delete leaves[selectedDate];
+            // 해당 일자의 연가자 데이터 완전 삭제
+            updateData[`days.${day}`] = firebase.firestore.FieldValue.delete();
         } else {
-            // Firestore에 저장 (문서가 없으면 생성, 있으면 병달의 해당 일자만 병합)
+            // 해당 일자의 연가자 데이터 완전 교체 (이전 데이터 영향 삭제)
+            updateData[`days.${day}`] = leaveData;
+        }
+
+        try {
+            // ⚠️ 1. 먼저 문서를 생성(또는 기본값 업데이트)하여 문가 존재하는지 확인
             await db.collection('leaves').doc(docId).set({
                 unit: selectedUnit,
-                month: yearMonth,
-                days: {
-                    [day]: leaveData
-                },
-                updatedAt: new Date().toISOString(),
-                updatedBy: currentUser.name
+                month: yearMonth
             }, { merge: true });
-            leaves[selectedDate] = leaveData;
+
+            // ⚠️ 2. update와 dot-notation([`days.${day}`])을 써서 해당 일자 필드만 '전면 교체'
+            await db.collection('leaves').doc(docId).update(updateData);
+            
+            // 전역 메모리 업데이트
+            if (Object.keys(leaveData).length === 0) {
+                delete leaves[selectedDate];
+            } else {
+                leaves[selectedDate] = JSON.parse(JSON.stringify(leaveData));
+            }
+        } catch (error) {
+            throw error;
         }
 
         renderCalendar();
@@ -137,12 +147,17 @@ function setupRealtimeSync() {
                 }
             });
             console.log(`🔄 [${selectedUnit}] 연가 데이터 실시간 동기화됨 (월별 그룹화)`);
+            
+            // 배경 달력 업데이트
             renderCalendar();
 
             // 모달 업데이트 (열려 있는 경우)
+            // ⚠️ 편집 중(isModalEditing)에는 UI 기반인 leaves 대신 editingLeaves를 쓰므로, 
+            // ⚠️ 여기서는 일반 사용자용 화면이나 관리자용 '현재 연가자 목록'의 보조적 업데이트만 수행함.
             if (selectedDate && document.getElementById('leaveModal').classList.contains('active')) {
                 if (currentUser && currentUser.role === 'admin') {
-                    updateLeaveItems();
+                    // 관리자 모달 내부 리스트는 편집 중이 아닐 때만 동기화 데이터 반영 (이미 editingLeaves가 우선임)
+                    if (!isModalEditing) updateLeaveItems();
                 } else {
                     showEmployeeView();
                 }

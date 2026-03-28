@@ -14,7 +14,11 @@ function onReasonChange(value) {
 
 function openModal() {
     if (!selectedDate) return;
-
+    
+    // ⚠️ 실시간 동기화와 충돌을 방지하기 위해 현재 연가 상태를 깊은 복사하여 '편집용'으로 따로 관리
+    editingLeaves = JSON.parse(JSON.stringify(leaves[selectedDate] || {}));
+    
+    isModalEditing = true; // ⚠️ 편집 모드 시작 (동기화 덮어쓰기 방지)
 
     // 상위 날짜 표시
     const date = new Date(selectedDate + 'T00:00:00');
@@ -34,6 +38,7 @@ function openModal() {
 
 function closeModal() {
     document.getElementById('leaveModal').classList.remove('active');
+    isModalEditing = false; // ⚠️ 편집 모드 종료
     selectedDate = null;
 }
 
@@ -138,7 +143,10 @@ function switchTab(tab) {
 // 연가자 자세히 보기 (텍스트 현출)
 // ========================================
 function openDetailView() {
-    const leaveData = leaves[selectedDate] || {};
+    // ⚠️ 편집 중이면 editingLeaves를, 아니면 전역 leaves를 사용 (상호 보완)
+    const leaveData = (isModalEditing && Object.keys(editingLeaves).length > 0) 
+                      ? editingLeaves 
+                      : (leaves[selectedDate] || {});
     
     // 1. 사람들을 종류(label)별로 그룹핑
     const groups = {};

@@ -38,8 +38,7 @@ function renderEmployeeList() {
         html += `<div class="team-members">`;
 
         grouped[team].forEach(empName => {
-            const leaveData = leaves[selectedDate] || {};
-            const isSelected = leaveData[empName];
+            const isSelected = editingLeaves[empName]; // ⚠️ editingLeaves를 사용하여 현재 편집 상태 반영
             html += `
                 <label class="employee-item team-member-${team}" data-name="${empName}">
                     <input type="checkbox" value="${empName}" class="emp-checkbox-${team}" ${isSelected ? 'checked' : ''} onchange="updateEmployeeReason('${empName}', '${team}')">
@@ -74,13 +73,11 @@ function renderEmployeeList() {
     document.getElementById('employeeList').innerHTML = html;
 
     // 선택된 연가자의 사유 반영
-    const leaveData = leaves[selectedDate] || {};
-
     employees.forEach(emp => {
         const empName = emp.name;
         const reasonSelect = document.getElementById(`reason-${empName}`);
         const detailInput = document.getElementById(`detail-reason-${empName}`);
-        const userLeaveData = leaveData[empName];
+        const userLeaveData = editingLeaves[empName]; // ⚠️ editingLeaves 사용
 
         if (reasonSelect && userLeaveData) {
             const val = typeof userLeaveData === 'object' ? userLeaveData.label : userLeaveData;
@@ -120,8 +117,6 @@ function changeTeamReason(team, reasonValue) {
 }
 
 function updateEmployeeReason(empName, team = '미지정') {
-    if (!leaves[selectedDate]) leaves[selectedDate] = {};
-
     const checkbox = document.querySelector(`input[value="${empName}"]`);
     const reasonSelect = document.getElementById(`reason-${empName}`);
     const detailInput = document.getElementById(`detail-reason-${empName}`);
@@ -131,29 +126,28 @@ function updateEmployeeReason(empName, team = '미지정') {
         const reqDetail = ['special', 'education', 'sick', 'compensatory_rest'].includes(val);
         if (detailInput) detailInput.style.display = reqDetail ? 'block' : 'none';
 
-        leaves[selectedDate][empName] = {
+        editingLeaves[empName] = { // ⚠️ editingLeaves에 직접 저장
             label: val,
             reason: detailInput && detailInput.style.display !== 'none' ? detailInput.value : '',
             team: team
         };
     } else {
         if (detailInput) detailInput.style.display = 'none';
-        delete leaves[selectedDate][empName];
+        delete editingLeaves[empName]; // ⚠️ editingLeaves에서 삭제
     }
 
     updateLeaveItems();
 }
 
 function updateLeaveItems() {
-    const leaveData = leaves[selectedDate] || {};
-    const emps = Object.keys(leaveData);
+    const emps = Object.keys(editingLeaves); // ⚠️ editingLeaves를 기반으로 하단 리스트 현출
 
     if (emps.length === 0) {
         document.getElementById('leaveItems').innerHTML = '<div class="empty-state"><p>아직 등록된 연가자가 없습니다</p></div>';
     } else {
         let html = '';
         emps.forEach(empName => {
-            const userLeaveData = leaveData[empName];
+            const userLeaveData = editingLeaves[empName];
             const val = typeof userLeaveData === 'object' ? userLeaveData.label : userLeaveData;
             const detail = typeof userLeaveData === 'object' ? userLeaveData.reason : '';
             const reasonObj = leaveReasons.find(r => r.value === val);
@@ -176,27 +170,24 @@ function updateLeaveItems() {
 function toggleEmployeeLeave() {
     if (!selectedDate || !currentUser) return;
 
-    if (!leaves[selectedDate]) {
-        leaves[selectedDate] = {};
-    }
+    // 일반 사용자 연가 신청용도 editingLeaves 사용
+    if (!editingLeaves) editingLeaves = {}; 
 
     // 당직 관련 reason들
     const dutyReasons = ['personal_duty', 'personal_rest', 'multi_duty', 'multi_rest'];
-
-    const leaveData = leaves[selectedDate];
-    const capacity = maxCapacity[selectedDate] || defaultMaxCapacity; // 2
+    const capacity = maxCapacity[selectedDate] || defaultMaxCapacity; 
 
     // ✅ 신청하려는 내 사유가 당직인지 먼저 확인
     const myReasonIsDuty = dutyReasons.includes(selectedReason);
 
-    if (currentUser.name in leaveData) {
+    if (currentUser.name in editingLeaves) {
         // 연가 취소 (무조건 가능)
-        delete leaveData[currentUser.name];
+        delete editingLeaves[currentUser.name];
     } else {
         // 연가 신청
         if (!myReasonIsDuty) {
             // 1. 당직이 아니면 → 용량 체크
-            const nonDutyCount = Object.values(leaveData)
+            const nonDutyCount = Object.values(editingLeaves)
                 .filter(reason => {
                     const val = typeof reason === 'object' ? reason.label : reason;
                     return !dutyReasons.includes(val);
@@ -210,15 +201,11 @@ function toggleEmployeeLeave() {
         }
         // 2. 당직이든 아니든 → 저장
         const detailInput = document.getElementById('detailReasonInput');
-        leaveData[currentUser.name] = {
+        editingLeaves[currentUser.name] = {
             label: selectedReason,
             reason: detailInput && detailInput.style.display !== 'none' ? detailInput.value : '',
             team: currentUser.team || '미지정'
         };
-    }
-
-    if (Object.keys(leaveData).length === 0) {
-        delete leaves[selectedDate];
     }
 
     saveLeave();
