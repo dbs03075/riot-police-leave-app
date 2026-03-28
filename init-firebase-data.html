@@ -98,51 +98,9 @@
                 // 더미 직원 데이터
                 const employeesData = [
                     // // 여기에 이름 입력 후 실행하면 됨.
-                    // { name: "윤성준", email: "dbs03075@gmail.com", role: "employee", unit: "3제대", team: "7팀", createdAt: firebase.firestore.Timestamp.now() },
+                    // { name: "유네", email: "dbs@gmail.com", role: "employee", unit: "3제대", team: "7팀", createdAt: firebase.firestore.Timestamp.now() },
                     // { name: "3제대수인", email: "kim@example.com", role: "admin", unit: "3제대", createdAt: firebase.firestore.Timestamp.now() },
-                    // // 이전 10개
-                    // { name: "김민준", email: "minjun.kim@gmail.com", role: "employee", unit: "1제대", team: "2팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "이서연", email: "seoyeon.lee@naver.com", role: "employee", unit: "2제대", team: "5팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "박지훈", email: "jihoon.park@gmail.com", role: "employee", unit: "1제대", team: "1팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "최수아", email: "sua.choi@kakao.com", role: "employee", unit: "3제대", team: "8팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "정태양", email: "taeyang.jung@gmail.com", role: "employee", unit: "2제대", team: "4팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "한예진", email: "yejin.han@naver.com", role: "employee", unit: "1제대", team: "3팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "오동현", email: "donghyun.oh@gmail.com", role: "employee", unit: "3제대", team: "9팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "신지원", email: "jiwon.shin@daum.net", role: "employee", unit: "2제대", team: "6팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "임채원", email: "chaewon.lim@gmail.com", role: "employee", unit: "1제대", team: "1팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "강현우", email: "hyunwoo.kang@naver.com", role: "employee", unit: "3제대", team: "7팀", createdAt: firebase.firestore.Timestamp.now() },
-
-                    // // 추가 30개
-                    // { name: "송유진", email: "yujin.song@gmail.com", role: "employee", unit: "2제대", team: "5팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "윤지호", email: "jiho.yoon@naver.com", role: "employee", unit: "1제대", team: "2팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "배민서", email: "minseo.bae@gmail.com", role: "employee", unit: "3제대", team: "8팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "조하은", email: "haeun.jo@kakao.com", role: "employee", unit: "2제대", team: "4팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "노준혁", email: "junhyuk.noh@gmail.com", role: "employee", unit: "1제대", team: "3팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "문소희", email: "sohee.moon@naver.com", role: "employee", unit: "3제대", team: "7팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "류성민", email: "sungmin.ryu@daum.net", role: "employee", unit: "2제대", team: "6팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "홍예은", email: "yeeun.hong@gmail.com", role: "employee", unit: "1제대", team: "1팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "안지현", email: "jihyun.ahn@naver.com", role: "employee", unit: "3제대", team: "9팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "황도윤", email: "doyun.hwang@gmail.com", role: "employee", unit: "2제대", team: "5팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "전민아", email: "mina.jeon@kakao.com", role: "employee", unit: "1제대", team: "2팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "서준서", email: "junseo.seo@gmail.com", role: "employee", unit: "3제대", team: "8팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "백지수", email: "jisoo.baek@naver.com", role: "employee", unit: "2제대", team: "4팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "남태현", email: "taehyun.nam@gmail.com", role: "employee", unit: "1제대", team: "3팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "권나연", email: "nayeon.kwon@daum.net", role: "employee", unit: "3제대", team: "7팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "유하준", email: "hajun.yu@gmail.com", role: "employee", unit: "2제대", team: "6팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "장세은", email: "seeun.jang@naver.com", role: "employee", unit: "1제대", team: "1팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "이도경", email: "dokyung.lee@gmail.com", role: "employee", unit: "3제대", team: "9팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "김하율", email: "hayul.kim@kakao.com", role: "employee", unit: "2제대", team: "5팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "박선우", email: "sunwoo.park@gmail.com", role: "employee", unit: "1제대", team: "2팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "최건희", email: "gunhee.choi@naver.com", role: "employee", unit: "3제대", team: "8팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "정다은", email: "daeun.jung@gmail.com", role: "employee", unit: "2제대", team: "4팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "한승재", email: "seungjae.han@daum.net", role: "employee", unit: "1제대", team: "3팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "오서율", email: "seoyul.oh@gmail.com", role: "employee", unit: "3제대", team: "7팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "신민채", email: "minchae.shin@naver.com", role: "employee", unit: "2제대", team: "6팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "임재원", email: "jaewon.lim@gmail.com", role: "employee", unit: "1제대", team: "1팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "강소윤", email: "soyun.kang@kakao.com", role: "employee", unit: "3제대", team: "9팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "송현준", email: "hyunjun.song@gmail.com", role: "employee", unit: "2제대", team: "5팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "윤아름", email: "areum.yoon@naver.com", role: "employee", unit: "1제대", team: "2팀", createdAt: firebase.firestore.Timestamp.now() },
-                    // { name: "배시온", email: "sion.bae@gmail.com", role: "employee", unit: "3제대", team: "8팀", createdAt: firebase.firestore.Timestamp.now() },
+                    
 
                 ];
 
