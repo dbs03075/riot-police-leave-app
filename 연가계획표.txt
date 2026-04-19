@@ -94,3 +94,7 @@ leave-management renderEmployList에 추가
 
 
 -------이제 링크로 만들어서 접속하기 ----- 
+
+1. 조퇴 추가
+
+2. 기타 추가

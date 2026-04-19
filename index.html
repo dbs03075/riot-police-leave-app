@@ -51,7 +51,8 @@
             <h1>📅 연가 관리 시스템</h1>
             <div class="header-info">
                 <div class="unit-selector" id="unitSelectorContainer" style="display: none; margin-right: 20px;">
-                    <select id="unitSelect" onchange="changeUnit(this.value)" class="reason-select" style="font-size: 14px; padding: 6px 30px 6px 12px; font-weight: bold; color: #0066CC; border: 1px solid rgba(0, 102, 204, 0.3);">
+                    <select id="unitSelect" onchange="changeUnit(this.value)" class="reason-select"
+                        style="font-size: 14px; padding: 6px 30px 6px 12px; font-weight: bold; color: #0066CC; border: 1px solid rgba(0, 102, 204, 0.3);">
                         <option value="1제대">1제대</option>
                         <option value="2제대">2제대</option>
                         <option value="3제대">3제대</option>
@@ -154,10 +155,14 @@
             </div>
 
             <div id="employeeView" style="display: none;">
+                <div style="text-align: right; margin-bottom: 15px;">
+                    <button class="detail-view-btn" onclick="openDetailView()">사고자 자세히 보기</button>
+                </div>
                 <div class="reason-selection">
                     <label class="reason-label">휴가 사유 선택</label>
                     <div class="reason-options" id="reasonOptions"></div>
-                    <input type="text" id="detailReasonInput" class="detail-reason-input" placeholder="상세 사유를 입력하세요" style="display: none; margin-top: 10px; width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;">
+                    <input type="text" id="detailReasonInput" class="detail-reason-input" placeholder="상세 사유를 입력하세요"
+                        style="display: none; margin-top: 10px; width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;">
                 </div>
 
                 <div class="employee-selection">

@@ -275,6 +275,18 @@
     font-weight: bold;
 }
 
+.leave-badge.leave_early_late {
+    background: #e0f2fe;
+    color: #0369a1;
+    border: 1px solid rgba(3, 105, 161, 0.2);
+}
+
+.leave-badge.etc {
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid rgba(71, 85, 105, 0.2);
+}
+
 .leave-more {
     font-size: var(--font-size-xs);
     color: var(--color-text-secondary);

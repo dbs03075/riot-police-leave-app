@@ -33,6 +33,8 @@ function renderEmployeeList() {
                         <option value="compensatory_rest">대체휴무</option>
                         <option value="multi_duty">다목적당직</option>
                         <option value="multi_rest">다당휴무</option>
+                        <option value="leave_early_late">조퇴/지각</option>
+                        <option value="etc">기타</option>
                     </select>
                  </div>`;
         html += `<div class="team-members">`;
@@ -56,6 +58,8 @@ function renderEmployeeList() {
                                 <option value="compensatory_rest">대체휴무</option>
                                 <option value="multi_duty">다목적당직</option>
                                 <option value="multi_rest">다당휴무</option>
+                                <option value="leave_early_late">조퇴/지각</option>
+                                <option value="etc">기타</option>
                             </select>
                             <input type="text" id="detail-reason-${empName}" class="detail-reason-input" placeholder="사유 입력" onchange="updateEmployeeReason('${empName}', '${team}')">
                         </div>
@@ -85,7 +89,7 @@ function renderEmployeeList() {
             reasonSelect.value = val;
             if (detailInput) {
                 detailInput.value = detail;
-                const reqDetail = ['special', 'education', 'sick', 'compensatory_rest'].includes(val);
+                const reqDetail = ['special', 'education', 'sick', 'compensatory_rest', 'leave_early_late', 'etc'].includes(val);
                 detailInput.style.display = reqDetail ? 'block' : 'none';
             }
         }
@@ -123,7 +127,7 @@ function updateEmployeeReason(empName, team = '미지정') {
 
     if (checkbox && checkbox.checked) {
         const val = reasonSelect.value;
-        const reqDetail = ['special', 'education', 'sick', 'compensatory_rest'].includes(val);
+        const reqDetail = ['special', 'education', 'sick', 'compensatory_rest', 'leave_early_late', 'etc'].includes(val);
         if (detailInput) detailInput.style.display = reqDetail ? 'block' : 'none';
 
         editingLeaves[empName] = { // ⚠️ editingLeaves에 직접 저장
@@ -171,11 +175,11 @@ function toggleEmployeeLeave() {
     if (!selectedDate || !currentUser) return;
 
     // 일반 사용자 연가 신청용도 editingLeaves 사용
-    if (!editingLeaves) editingLeaves = {}; 
+    if (!editingLeaves) editingLeaves = {};
 
     // 당직 관련 reason들
-    const dutyReasons = ['personal_duty', 'personal_rest', 'multi_duty', 'multi_rest'];
-    const capacity = maxCapacity[selectedDate] || defaultMaxCapacity; 
+    const dutyReasons = ['personal_duty', 'personal_rest', 'multi_duty', 'multi_rest', 'etc'];
+    const capacity = maxCapacity[selectedDate] || defaultMaxCapacity;
 
     // ✅ 신청하려는 내 사유가 당직인지 먼저 확인
     const myReasonIsDuty = dutyReasons.includes(selectedReason);
@@ -213,17 +217,17 @@ function toggleEmployeeLeave() {
 
 function filterEmployees() {
     const searchValue = document.getElementById('employeeSearch').value.toLowerCase();
-    
+
     // 각 팀 그룹별로 처리
     const teamGroups = document.querySelectorAll('.team-group');
     teamGroups.forEach(group => {
         const items = group.querySelectorAll('.employee-item[data-name]');
         let hasVisibleMember = false;
-        
+
         items.forEach(item => {
             const nameElement = item.querySelector('.employee-name');
             if (!nameElement) return;
-            
+
             const name = nameElement.textContent.toLowerCase();
             if (name.includes(searchValue)) {
                 item.style.display = 'flex';
@@ -232,7 +236,7 @@ function filterEmployees() {
                 item.style.display = 'none';
             }
         });
-        
+
         // 검색어에 일치하는 직원이 한 명이라도 있으면 팀 그룹 전체 보이기, 없으면 숨기기
         if (hasVisibleMember || searchValue === '') {
             group.style.display = 'block';

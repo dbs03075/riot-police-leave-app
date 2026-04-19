@@ -6,7 +6,7 @@ function onReasonChange(value) {
     selectedReason = value;
     const detailInput = document.getElementById('detailReasonInput');
     if (detailInput) {
-        const reqDetail = ['special', 'education', 'sick', 'compensatory_rest'].includes(value);
+        const reqDetail = ['special', 'education', 'sick', 'compensatory_rest', 'leave_early_late', 'etc'].includes(value);
         detailInput.style.display = reqDetail ? 'block' : 'none';
         if (!reqDetail) detailInput.value = '';
     }
@@ -75,7 +75,7 @@ function showEmployeeView() {
     document.getElementById('reasonOptions').innerHTML = reasonHtml;
 
     // 당직 관련 reason들
-    const dutyReasons = ['personal_duty', 'personal_rest', 'multi_duty', 'multi_rest'];
+    const dutyReasons = ['personal_duty', 'personal_rest', 'multi_duty', 'multi_rest', 'etc'];
 
     // 직원의 현재 상태 표시
     const leaveData = leaves[selectedDate] || {};
@@ -160,8 +160,8 @@ function openDetailView() {
     }
 
     // 2. 상단, 하단 출력 순서 정의
-    const upperOrder = ['annual', 'special', 'education', 'out_of_area_travel', 'compensatory_rest'];
-    const lowerOrder = ['personal_duty', 'personal_rest', 'multi_duty', 'multi_rest'];
+    const upperOrder = ['annual', 'special', 'education', 'out_of_area_travel', 'compensatory_rest', 'leave_early_late'];
+    const lowerOrder = ['personal_duty', 'personal_rest', 'multi_duty', 'multi_rest', 'etc'];
     
     // 예외적으로 'sick'이 있을 수 있으니 upperOrder 뒤에 처리
     const labelMap = {
@@ -171,10 +171,12 @@ function openDetailView() {
         'sick': '병가',
         'out_of_area_travel': '관외',
         'compensatory_rest': '대체휴무',
+        'leave_early_late': '조퇴/지각',
         'personal_duty': '개인당직',
         'personal_rest': '당직휴무',
         'multi_duty': '다목적당직',
-        'multi_rest': '다당휴무'
+        'multi_rest': '다당휴무',
+        'etc': '기타'
     };
 
     let upperHtml = '';

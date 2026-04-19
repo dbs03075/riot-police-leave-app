@@ -11,10 +11,10 @@ async function saveLeave() {
     if (!selectedDate) return;
 
     // 당직 관련 reason들
-    const dutyReasons = ['personal_duty', 'personal_rest', 'multi_duty', 'multi_rest'];
+    const dutyReasons = ['personal_duty', 'personal_rest', 'multi_duty', 'multi_rest', 'etc'];
 
     // ⚠️ 저장 시에는 편집 중인 고유 데이터(editingLeaves)를 사용함
-    const leaveData = editingLeaves || {}; 
+    const leaveData = editingLeaves || {};
     console.log("저장 시도 데이터:", leaveData);
 
     const capacity = maxCapacity[selectedDate] || defaultMaxCapacity;
@@ -46,7 +46,7 @@ async function saveLeave() {
         Object.keys(editingLeaves).forEach(empName => {
             const currentEdit = editingLeaves[empName];
             const original = originalLeaves[empName];
-            
+
             // 원본에 없거나 데이터가 바뀐 경우만 전송
             if (JSON.stringify(currentEdit) !== JSON.stringify(original)) {
                 updateData[`days.${day}.${empName}`] = currentEdit;
@@ -63,7 +63,7 @@ async function saveLeave() {
         try {
             // ⚠️ 변경 사항이 하나라도 있을 때만 DB 작업 수행 (불필요 트래픽 방지)
             const changes = Object.keys(updateData).filter(k => k.startsWith('days.'));
-            
+
             if (changes.length > 0) {
                 // 문서가 없을 수도 있으니 기본 틀부터 생성(있는 경우 그대로 둠)
                 await db.collection('leaves').doc(docId).set({
@@ -74,14 +74,14 @@ async function saveLeave() {
                 // 정밀하게 딱 바뀐 필드(사람)만 업데이트! (여기서 충돌이 방지됨)
                 await db.collection('leaves').doc(docId).update(updateData);
             }
-            
+
             // 전역 메모리 최신화 (성공 시에만)
             if (Object.keys(editingLeaves).length === 0) {
                 delete leaves[selectedDate];
             } else {
                 leaves[selectedDate] = JSON.parse(JSON.stringify(editingLeaves));
             }
-            
+
             console.log('✓ 정밀 업데이트가 서버에 반영되었습니다:', changes.length, '명 변경');
         } catch (error) {
             throw error;
@@ -165,7 +165,7 @@ function setupRealtimeSync() {
                 }
             });
             console.log(`🔄 [${selectedUnit}] 연가 데이터 실시간 동기화됨 (월별 그룹화)`);
-            
+
             // 배경 달력 업데이트
             renderCalendar();
 

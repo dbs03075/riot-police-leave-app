@@ -48,7 +48,7 @@ function renderCalendar() {
         // 수정 후)
         // 카운트 제외할 당직 사유들
         // console.log(Object.values(leaveData));
-        const dutyReasons = ['personal_duty', 'personal_rest', 'multi_duty', 'multi_rest']; // 제외하는 사유들은 leaveReason들과 value값을 통일시켜야함.
+        const dutyReasons = ['personal_duty', 'personal_rest', 'multi_duty', 'multi_rest', 'etc']; // 제외하는 사유들은 leaveReason들과 value값을 통일시켜야함.
         const leaveCount = Object.keys(leaveData).length; // 실제 갯수
 
         const nonDutyCount = Object.values(leaveData) // 당직 관련 제외 갯수
@@ -102,7 +102,7 @@ function renderCalendar() {
                 individualEntries.push({ name, val, detail, team });
             }
         });
-        
+
         // ⚠️ [추가] 팀 번호 순서대로 정렬 (1팀 -> 2팀 -> ... -> 9팀)
         individualEntries.sort((a, b) => {
             const getTeamNum = (teamName) => {
@@ -141,7 +141,7 @@ function renderCalendar() {
             const teamPrefix = entry.team !== '미지정' ? entry.team.replace('', '') : '';
             let displayStr = `${teamPrefix} ${entry.name}(${getLabel(entry.val)})`;
 
-            if (['special', 'education', 'sick', 'compensatory_rest'].includes(entry.val) && entry.detail) {
+            if (['special', 'education', 'sick', 'compensatory_rest', 'leave_early_late', 'etc'].includes(entry.val) && entry.detail) {
                 displayStr = `${teamPrefix}${entry.name}(${getLabel(entry.val)}, ${entry.detail})`;
             }
             leaveItemsHtml += `<div class="leave-badge ${entry.val}">${displayStr}</div>`;
