@@ -42,6 +42,9 @@ const leaveReasons = [
     { value: 'multi_rest', label: '다당휴무', color: '#831843' },
     { value: 'multi_duty', label: '다목적당직', color: '#7c2d12' },
     { value: 'compensatory_rest', label: '대체휴무', color: '#831843' },
+    { value: 'leave_early_late', label: '조퇴/지각', color: '#6B7C8F' },
+    { value: 'etc', label: '기타', color: '#95A0A8' },
+
 ];
 
 const defaultMaxCapacity = 4;
