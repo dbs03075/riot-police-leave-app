@@ -99,17 +99,28 @@ function renderCalendar() {
                 }
             } else {
                 totalRegularPeople++;
-                individualEntries.push({ name, val, detail, team });
+                individualEntries.push({ 
+                    name, 
+                    val, 
+                    detail, 
+                    team, 
+                    hierarchy: typeof reasonData === 'object' ? (reasonData.hierarchy || 999) : 999 
+                });
             }
         });
 
-        // ⚠️ [추가] 팀 번호 순서대로 정렬 (1팀 -> 2팀 -> ... -> 9팀)
+        // ⚠️ [추가] 팀 번호 순서 -> 팀 내 Hierarchy 순으로 정렬
         individualEntries.sort((a, b) => {
             const getTeamNum = (teamName) => {
                 const num = parseInt(teamName.replace(/[^0-9]/g, '')); // 숫자만 추출
                 return isNaN(num) ? 999 : num; // 숫자가 없으면 맨 뒤로
             };
-            return getTeamNum(a.team) - getTeamNum(b.team);
+            
+            const teamDiff = getTeamNum(a.team) - getTeamNum(b.team);
+            if (teamDiff !== 0) return teamDiff;
+            
+            // 팀이 같으면 hierarchy 순서대로 (낮은 숫자 우선)
+            return (a.hierarchy || 999) - (b.hierarchy || 999);
         });
 
         // 3. 렌더링 할당 (최대 10개 배지 제한)

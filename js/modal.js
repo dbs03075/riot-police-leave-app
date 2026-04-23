@@ -152,12 +152,29 @@ function openDetailView() {
     
     // 1. 사람들을 종류(label)별로 그룹핑
     const groups = {};
+    const getTeamNum = (teamName) => {
+        const num = parseInt(teamName.toString().replace(/[^0-9]/g, ''));
+        return isNaN(num) ? 999 : num;
+    };
+
     for (const [emp, reasonObj] of Object.entries(leaveData)) {
         const val = typeof reasonObj === 'object' ? reasonObj.label : reasonObj;
         const detail = typeof reasonObj === 'object' ? reasonObj.reason : '';
+        const team = typeof reasonObj === 'object' ? (reasonObj.team || '미지정') : '미지정';
+        const hierarchy = typeof reasonObj === 'object' ? (reasonObj.hierarchy || 999) : 999;
+        
         if (!groups[val]) groups[val] = [];
-        groups[val].push({ emp, detail });
+        groups[val].push({ emp, detail, team, hierarchy });
     }
+
+    // 각 그룹(사유별) 내에서 팀 순서 -> hierarchy 순서로 정렬
+    Object.keys(groups).forEach(key => {
+        groups[key].sort((a, b) => {
+            const teamDiff = getTeamNum(a.team) - getTeamNum(b.team);
+            if (teamDiff !== 0) return teamDiff;
+            return (a.hierarchy || 999) - (b.hierarchy || 999);
+        });
+    });
 
     // 2. 상단, 하단 출력 순서 정의
     const upperOrder = ['annual', 'special', 'education', 'out_of_area_travel', 'compensatory_rest', 'leave_early_late'];

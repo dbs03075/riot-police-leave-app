@@ -220,7 +220,11 @@ function setupRealtimeSync() {
                 employees = [];
                 snapshot.forEach(doc => {
                     const data = doc.data();
-                    employees.push({ name: data.name, team: data.team || '미지정' });
+                    employees.push({ 
+                        name: data.name, 
+                        team: data.team || '미지정',
+                        hierarchy: data.hierarchy || 999 
+                    });
                 });
                 console.log(`👥 [${selectedUnit}] 직원 목록 실시간 동기화됨:`, employees.length, '명');
 

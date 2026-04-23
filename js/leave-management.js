@@ -10,7 +10,12 @@ function renderEmployeeList() {
     const grouped = {};
     employees.forEach(emp => {
         if (!grouped[emp.team]) grouped[emp.team] = [];
-        grouped[emp.team].push(emp.name);
+        grouped[emp.team].push(emp); // 이름 대신 객체 전체 저장
+    });
+
+    // 각 팀 내에서 hierarchy 순으로 정렬
+    Object.keys(grouped).forEach(team => {
+        grouped[team].sort((a, b) => (a.hierarchy || 999) - (b.hierarchy || 999));
     });
 
     const teams = Object.keys(grouped).sort();
@@ -39,7 +44,8 @@ function renderEmployeeList() {
                  </div>`;
         html += `<div class="team-members">`;
 
-        grouped[team].forEach(empName => {
+        grouped[team].forEach(emp => {
+            const empName = emp.name;
             const isSelected = editingLeaves[empName]; // ⚠️ editingLeaves를 사용하여 현재 편집 상태 반영
             html += `
                 <label class="employee-item team-member-${team}" data-name="${empName}">
@@ -130,10 +136,12 @@ function updateEmployeeReason(empName, team = '미지정') {
         const reqDetail = ['special', 'education', 'sick', 'compensatory_rest', 'leave_early_late', 'etc'].includes(val);
         if (detailInput) detailInput.style.display = reqDetail ? 'block' : 'none';
 
+        const empInfo = employees.find(e => e.name === empName);
         editingLeaves[empName] = { // ⚠️ editingLeaves에 직접 저장
             label: val,
             reason: detailInput && detailInput.style.display !== 'none' ? detailInput.value : '',
-            team: team
+            team: team,
+            hierarchy: empInfo ? (empInfo.hierarchy || 999) : 999
         };
     } else {
         if (detailInput) detailInput.style.display = 'none';
@@ -208,7 +216,8 @@ function toggleEmployeeLeave() {
         editingLeaves[currentUser.name] = {
             label: selectedReason,
             reason: detailInput && detailInput.style.display !== 'none' ? detailInput.value : '',
-            team: currentUser.team || '미지정'
+            team: currentUser.team || '미지정',
+            hierarchy: currentUser.hierarchy || 999
         };
     }
 
