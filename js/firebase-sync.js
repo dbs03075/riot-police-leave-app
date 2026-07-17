@@ -1,8 +1,9 @@
 // ========================================
-// 텔레그램 전송은 Firebase Cloud Function이 처리합니다.
-// 봇 토큰과 채팅 ID는 Firebase Secret Manager에만 저장합니다.
+// 텔레그램 전송 설정은 config.js에서 읽습니다.
+// GitHub Pages 배포 시 GitHub Actions Secrets 값이 config.js에 주입됩니다.
 // ========================================
-const TELEGRAM_NOTIFICATION_URL = "https://asia-northeast3-leave-management-app-2c39c.cloudfunctions.net/telegramClientNotification";
+const TELEGRAM_BOT_TOKEN = firebaseConfig.telegramBotToken;
+const TELEGRAM_CHAT_ID = firebaseConfig.telegramChatId;
 
 // 변동사항 알림 ON/OFF (localStorage에 저장)
 let telegramChangeNotifyEnabled = localStorage.getItem('telegram_notify_on_change') !== 'false';
@@ -70,19 +71,18 @@ async function saveTelegramScheduleSetting() {
 
 // 텔레그램 메시지 전송 함수
 function sendTelegramMessage(message) {
-  if (!auth.currentUser) {
-    console.warn("로그인된 사용자가 없어 텔레그램 알림을 보내지 않습니다.");
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+    console.error("텔레그램 토큰 또는 채팅 ID가 config.js에 없습니다.");
     return Promise.resolve(null);
   }
 
-  return auth.currentUser.getIdToken().then((idToken) => fetch(TELEGRAM_NOTIFICATION_URL, {
+  return fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${idToken}`,
     },
-    body: JSON.stringify({ message }),
-  }))
+    body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: message, parse_mode: "HTML" }),
+  })
     .then((res) => res.json())
     .then((data) => {
       if (data.ok) {

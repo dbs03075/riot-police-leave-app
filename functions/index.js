@@ -95,8 +95,17 @@ async function getVerifiedAdmin(request) {
 
   const { getAuth } = require("firebase-admin/auth");
   const decodedToken = await getAuth().verifyIdToken(token);
-  const employee = await db.collection("employees").doc(decodedToken.uid).get();
-  if (!employee.exists || employee.data().role !== "admin") {
+  // The client signs in with the email stored in employees.  Employee document
+  // IDs are not guaranteed to be Firebase Auth UIDs, so look up the document
+  // by the verified token's email rather than assuming its document ID.
+  if (!decodedToken.email) throw new Error("Authenticated user has no email");
+  const employees = await db
+    .collection("employees")
+    .where("email", "==", decodedToken.email)
+    .limit(1)
+    .get();
+  const employee = employees.docs[0];
+  if (!employee || employee.data().role !== "admin") {
     throw new Error("Administrator permission required");
   }
   return decodedToken;
