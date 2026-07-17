@@ -31,7 +31,6 @@ function updateSettingsGrid() {
 
     document.getElementById('settingsGrid').innerHTML = html;
 }
-
 function formatDateForCard(dateStr) {
     const date = new Date(dateStr + 'T00:00:00');
     return date.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });

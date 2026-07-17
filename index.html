@@ -73,6 +73,7 @@
             <div class="tabs" id="adminTabs" style="display: none;">
                 <button class="tab-btn active" onclick="switchTab('calendar')">📅 캘린더</button>
                 <button class="tab-btn" onclick="switchTab('settings')">⚙️ 설정</button>
+                <button class="tab-btn" onclick="switchTab('history')">📋 변경 이력</button>
             </div>
 
             <!-- 캘린더 탭 -->
@@ -113,6 +114,58 @@
                             <div class="add-date-setting" onclick="addDateSetting()">
                                 <div style="font-size: 28px; margin-bottom: 8px;">+</div>
                                 <div style="font-weight: 600;">일자 추가</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 텔레그램 알림 -->
+                    <div style="margin-top: 30px; padding: 20px; background: #fff; border-radius: 12px; border: 1px solid #e0e8f0;">
+                        <h3 style="color: #0066CC; font-size: 18px; margin: 0 0 10px;">📲 텔레그램 알림</h3>
+                        <p style="color: #6B7C8F; font-size: 13px; margin-bottom: 16px; line-height: 1.6;">
+                            필요한 알림만 받도록 변경 알림과 당일 현황 정기 전송을 각각 설정할 수 있습니다.
+                        </p>
+                        <div style="display: grid; gap: 14px; margin-bottom: 18px; padding: 14px; background: #F7FAFD; border-radius: 8px;">
+                            <label style="display: flex; align-items: center; gap: 9px; font-size: 14px; color: #334155; cursor: pointer;">
+                                <input id="telegramChangeNotifyToggle" type="checkbox" onchange="saveTelegramChangeNotifySetting(this.checked)">
+                                연가 변경 시 즉시 알림 받기
+                            </label>
+                            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px;">
+                                <label for="telegramScheduleTime" style="font-size: 14px; color: #334155;">당일 연가자 현황 정기 전송</label>
+                                <input id="telegramScheduleTime" type="time" onchange="saveTelegramScheduleSetting()"
+                                    style="padding: 7px 9px; border: 1px solid #CBD5E1; border-radius: 6px; font-size: 14px;">
+                                <span style="font-size: 12px; color: #64748B;">비워 두면 자동 전송하지 않습니다.</span>
+                            </div>
+                        </div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                            <button id="telegramTestBtn" onclick="testTelegramConnection()"
+                                style="padding: 10px 20px; background: linear-gradient(135deg, #00A86B, #008055); color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">
+                                🔔 연결 테스트
+                            </button>
+                            <button id="sendTodayDetailBtn" onclick="sendTodayDetailToTelegram()"
+                                style="padding: 10px 20px; background: linear-gradient(135deg, #6B4EFF, #4B2ECC); color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">
+                                📤 당일 현황 전송
+                            </button>
+                        </div>
+                        <p style="margin-top: 12px; font-size: 12px; color: #95A0A8;">
+                            ℹ️ 봇 토큰과 채팅 ID는 Firebase Secret Manager에 안전하게 저장되어 있습니다.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 변경 이력 탭 -->
+            <div id="historyTab" class="tab-content">
+                <div class="settings-page">
+                    <div style="margin-bottom: 20px;">
+                        <h3 style="color: #0066CC; margin-bottom: 15px; font-size: 18px;">연가 변경 이력 확인</h3>
+                        <div style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+                            <label for="historyDate" style="font-weight: bold;">변경일자 (작업일):</label>
+                            <input type="date" id="historyDate" class="detail-reason-input" style="width: auto; margin: 0; padding: 8px;" onchange="loadHistory(this.value)">
+                            <button class="save-btn" style="padding: 8px 15px; width: auto; font-size: 14px;" onclick="loadHistory(document.getElementById('historyDate').value)">조회</button>
+                        </div>
+                        <div id="historyContent" style="background: #fff; padding: 20px; border-radius: 8px; border: 1px solid #eee; min-height: 200px;">
+                            <div class="empty-state">
+                                <p>날짜를 선택하여 이력을 조회하세요.</p>
                             </div>
                         </div>
                     </div>
@@ -196,14 +249,15 @@
     </div>
 
     <!-- 앱 스크립트 (순서대로 로드) -->
-    <script src="js/config.js"></script>
-    <script src="js/auth.js"></script>
-    <script src="js/calendar.js"></script>
-    <script src="js/leave-management.js"></script>
-    <script src="js/modal.js"></script>
-    <script src="js/settings.js"></script>
-    <script src="js/firebase-sync.js"></script>
-    <script src="js/app.js"></script>
+    <script src="js/config.js?v=20260716"></script>
+    <script src="js/auth.js?v=20260716"></script>
+    <script src="js/calendar.js?v=20260716"></script>
+    <script src="js/leave-management.js?v=20260716"></script>
+    <script src="js/modal.js?v=20260716"></script>
+    <script src="js/settings.js?v=20260716"></script>
+    <script src="js/firebase-sync.js?v=20260716-server-scheduler"></script>
+    <script src="js/history.js?v=20260716"></script>
+    <script src="js/app.js?v=20260716"></script>
 </body>
 
 </html>

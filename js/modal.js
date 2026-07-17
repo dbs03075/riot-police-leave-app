@@ -135,9 +135,29 @@ function switchTab(tab) {
         document.getElementById('calendarTab').classList.add('active');
         document.querySelectorAll('.tab-btn')[0].classList.add('active');
     }
-    else {
+    else if (tab === 'settings') {
         document.getElementById('settingsTab').classList.add('active');
         document.querySelectorAll('.tab-btn')[1].classList.add('active');
+        // 설정 탭 진입 시 텔레그램 설정값 UI 반영
+        if (typeof loadTelegramSettings === 'function') loadTelegramSettings();
+    }
+    else if (tab === 'history') {
+        document.getElementById('historyTab').classList.add('active');
+        document.querySelectorAll('.tab-btn')[2].classList.add('active');
+
+        // 변경 이력 조회 함수가 정의되어 있으면 자동 실행
+        if (typeof loadHistory === 'function') {
+            const historyDateInput = document.getElementById('historyDate');
+            if (historyDateInput) {
+                if (!historyDateInput.value) {
+                    const today = new Date();
+                    const offset = today.getTimezoneOffset() * 60000;
+                    const localDateStr = (new Date(today - offset)).toISOString().split('T')[0];
+                    historyDateInput.value = localDateStr;
+                }
+                loadHistory(historyDateInput.value);
+            }
+        }
     }
 }
 

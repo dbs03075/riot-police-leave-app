@@ -1,5 +1,6 @@
 # 민감 정보 - 절대 커밋 금지
 js/config.js
+functions/node_modules/
 
 # 빌드/배포 임시 파일
 .env

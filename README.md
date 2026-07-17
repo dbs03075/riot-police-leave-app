@@ -52,6 +52,46 @@ git clone https://github.com/dbs03075/riot-police-leave-app.git
 # index.html을 브라우저로 실행
 ```
 
+### 3. Blaze 전환 및 텔레그램 서버 설정
+
+`/todayleaves`를 입력하면 1·2·3제대의 당일 연가자 현황을 답장하며, 설정 화면의 정기 전송 시간에는 웹 화면이 닫혀 있어도 서버가 당일 현황을 보냅니다.
+
+1. Firebase Console에서 프로젝트를 연 뒤 **업그레이드(Upgrade)** → **Blaze**를 선택하고 Cloud Billing 계정을 연결합니다. 이어서 Billing의 **예산 및 알림**에서 작은 금액(예: 1달러) 알림을 만드세요. 예산 알림은 사용을 자동으로 차단하지 않으므로, 사용량도 함께 확인해야 합니다.
+2. Firebase CLI로 로그인하고 `functions` 폴더에서 의존성을 설치합니다.
+   ```bash
+   ```bash
+   firebase login
+   cd functions
+   npm install
+   cd ..
+   ```
+
+3. 다음 세 개의 서버 시크릿을 등록합니다. `TELEGRAM_ALLOWED_CHAT_ID`에는 명령을 허용하고 정기 전송을 받을 텔레그램 그룹 ID를 넣습니다.
+
+   ```bash
+   firebase functions:secrets:set TELEGRAM_BOT_TOKEN --project <FIREBASE_PROJECT_ID>
+   firebase functions:secrets:set TELEGRAM_WEBHOOK_SECRET --project <FIREBASE_PROJECT_ID>
+   firebase functions:secrets:set TELEGRAM_ALLOWED_CHAT_ID --project <FIREBASE_PROJECT_ID>
+   ```
+
+   웹훅 시크릿은 영문 대·소문자, 숫자, `_`, `-`만 사용해 1~256자로 만드세요.
+
+4. 명령 웹훅과 정기 전송 함수를 함께 배포합니다.
+
+   ```bash
+   firebase deploy --only functions:telegramWebhook,functions:sendScheduledDailyLeaves --project <FIREBASE_PROJECT_ID>
+   ```
+
+5. 출력된 함수 URL을 텔레그램 웹훅으로 등록합니다. 아래 `<FUNCTION_URL>`은 배포 결과의 URL로 교체합니다.
+
+   ```bash
+   curl.exe -X POST "https://api.telegram.org/bot<BOT_TOKEN>/setWebhook" -d "url=<FUNCTION_URL>" -d "secret_token=<TELEGRAM_WEBHOOK_SECRET>" -d "allowed_updates=[\"message\"]"
+   ```
+
+이후 허용한 그룹에서 `/todayleaves`를 입력하면 봇이 당일 현황을 답장합니다. 설정 화면에서 정기 전송 시간을 지정하면 그 값이 Firestore에 저장되고 서버가 한국 시간 기준으로 매일 한 번 전송합니다. 다른 명령이나 허용되지 않은 채팅 ID의 메시지는 무시합니다.
+
+이 구성은 Cloud Scheduler 작업 1개만 사용합니다. Scheduler는 Google 계정당 작업 3개까지 무료 할당량이 있고, 이 앱은 하루 1,440회 설정 문서를 읽습니다. Firestore 무료 일일 읽기 한도(50,000회)와 Cloud Functions 무료 월간 호출 한도(2,000,000회)보다 충분히 낮습니다. 다만 무료 한도 초과와 함수 컨테이너 저장 용량에는 과금될 수 있으므로 예산 알림을 유지하세요.
+
 ---
 
 ## 📸 미리보기 (Preview)
@@ -64,4 +104,4 @@ git clone https://github.com/dbs03075/riot-police-leave-app.git
 ---
 
 ## ⚖️ License
-Copyright © 2024 dbs03075. All rights reserved.
+Copyright © 2026 dbs03075. All rights reserved.
