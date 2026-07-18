@@ -12,10 +12,11 @@ const telegramAllowedChatId = defineSecret("TELEGRAM_ALLOWED_CHAT_ID");
 const db = getFirestore();
 
 const UNITS = ["1제대", "2제대", "3제대"];
+const DEFAULT_MAX_CAPACITY = 4;
 const DUTY_REASONS = new Set(["personal_duty", "personal_rest", "multi_duty", "multi_rest", "etc"]);
 const REASON_LABELS = {
   annual: "연가",
-  special: "특별휴가",
+  special: "특가",
   education: "교육",
   sick: "병가",
   out_of_area_travel: "관외",
@@ -27,6 +28,8 @@ const REASON_LABELS = {
   multi_rest: "다당휴무",
   etc: "기타",
 };
+const UPPER_REASON_ORDER = ["annual", "special", "education", "out_of_area_travel", "sick", "compensatory_rest", "leave_early_late"];
+const LOWER_REASON_ORDER = ["personal_duty", "personal_rest", "multi_duty", "multi_rest", "etc"];
 
 function getSeoulDateTime() {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -49,42 +52,74 @@ function getSeoulDate() {
   return getSeoulDateTime().date;
 }
 
-function formatEntries(entries) {
+function getTeamNumber(teamName) {
+  const value = Number.parseInt(String(teamName || "").replace(/[^0-9]/g, ""), 10);
+  return Number.isNaN(value) ? 999 : value;
+}
+
+function buildUnitTodayLeavesMessage(date, unit, entries, capacity) {
   const grouped = {};
   for (const [name, raw] of Object.entries(entries || {})) {
     const reason = typeof raw === "object" ? raw.label : raw;
-    const detail = typeof raw === "object" ? raw.reason : "";
+    const detail = typeof raw === "object" ? raw.reason || "" : "";
+    const team = typeof raw === "object" ? raw.team || "미지정" : "미지정";
+    const hierarchy = typeof raw === "object" ? raw.hierarchy || 999 : 999;
     if (!grouped[reason]) grouped[reason] = [];
-    grouped[reason].push(detail ? `${name}(${detail})` : name);
+    grouped[reason].push({ name, detail, team, hierarchy });
   }
 
-  return Object.entries(grouped)
-    .map(([reason, names]) => `${REASON_LABELS[reason] || reason} ${names.length}명: ${names.join(", ")}`)
-    .join("\n");
+  for (const people of Object.values(grouped)) {
+    people.sort((a, b) => getTeamNumber(a.team) - getTeamNumber(b.team) || a.hierarchy - b.hierarchy);
+  }
+
+  const formatGroup = (reason) => {
+    const people = grouped[reason];
+    if (!people?.length) return "";
+    const names = people.map(({ name, detail }) => (detail ? `${name}[${detail}]` : name)).join(", ");
+    return `${REASON_LABELS[reason] || reason} ${people.length}(${names})`;
+  };
+
+  const upperLines = UPPER_REASON_ORDER.map(formatGroup).filter(Boolean);
+  const lowerLines = LOWER_REASON_ORDER.map(formatGroup).filter(Boolean);
+  const dateDisplay = new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+  }).format(new Date(`${date}T00:00:00+09:00`));
+  const leaveCount = Object.values(entries || {}).filter((raw) => !DUTY_REASONS.has(typeof raw === "object" ? raw.label : raw)).length;
+  const lines = upperLines.length || lowerLines.length ? [...upperLines, ...(upperLines.length && lowerLines.length ? [""] : []), ...lowerLines] : ["등록된 연가자가 없습니다."];
+
+  return `📋 <b>[${unit}] ${dateDisplay} 연가자 현황</b>\n──────────────────\n${lines.join("\n")}\n──────────────────\n📊 연가 인원: ${leaveCount}/${capacity}명`;
 }
 
 async function buildTodayLeavesMessage() {
   const date = getSeoulDate();
   const [year, month, day] = date.split("-");
   const snapshots = await Promise.all(
-    UNITS.map((unit) => db.collection("leaves").doc(`${unit}_${year}-${month}`).get())
+    UNITS.map(async (unit) => {
+      const [leaveSnapshot, capacitySnapshot] = await Promise.all([
+        db.collection("leaves").doc(`${unit}_${year}-${month}`).get(),
+        db.collection("settings").doc(`maxCapacity_${unit}`).get(),
+      ]);
+      return { unit, leaveSnapshot, capacitySnapshot };
+    })
   );
 
-  const sections = snapshots.map((snapshot, index) => {
-    const entries = snapshot.exists ? snapshot.data().days?.[day] || {} : {};
-    const leaveCount = Object.values(entries).filter((raw) => !DUTY_REASONS.has(typeof raw === "object" ? raw.label : raw)).length;
-    const details = formatEntries(entries);
-    return `[${UNITS[index]}] 연가 인원 ${leaveCount}명\n${details || "등록된 인원이 없습니다."}`;
+  const sections = snapshots.map(({ unit, leaveSnapshot, capacitySnapshot }) => {
+    const entries = leaveSnapshot.exists ? leaveSnapshot.data().days?.[day] || {} : {};
+    const configuredCapacity = capacitySnapshot.exists ? Number(capacitySnapshot.data()?.[date]) : 0;
+    return buildUnitTodayLeavesMessage(date, unit, entries, configuredCapacity || DEFAULT_MAX_CAPACITY);
   });
 
-  return `📋 ${date} 당일 연가자 현황\n\n${sections.join("\n\n")}`;
+  return sections.join("\n\n");
 }
 
 async function sendTelegramMessage(chatId, text) {
   const response = await fetch(`https://api.telegram.org/bot${telegramBotToken.value().trim()}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text }),
+    body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
   });
   if (!response.ok) throw new Error(`Telegram sendMessage failed: ${response.status}`);
 }
