@@ -6,6 +6,10 @@ functions/node_modules/
 .env
 .env.local
 .env*.local
+*.log
+
+# 이메일 주소를 파일명으로 사용한 임시 계정/비밀번호 메모
+*@*.txt
 
 # OS 파일
 .DS_Store

@@ -12,9 +12,7 @@ const firebaseConfig = {
     storageBucket: "%%FIREBASE_STORAGE_BUCKET%%",
     messagingSenderId: "%%FIREBASE_MESSAGING_SENDER_ID%%",
     appId: "%%FIREBASE_APP_ID%%",
-    measurementId: "%%FIREBASE_MEASUREMENT_ID%%",
-    telegramBotToken: "%%TELEGRAM_BOT_TOKEN%%",
-    telegramChatId: "%%TELEGRAM_CHAT_ID%%"
+    measurementId: "%%FIREBASE_MEASUREMENT_ID%%"
 };
 
 // Firebase 초기화
@@ -22,12 +20,28 @@ firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function escapeTelegramHtml(value) {
+    return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 // 전역 변수
 let currentUser = null;
 let leaves = {};
 let maxCapacity = {};
 let teamQuotas = {};
 let employees = [];  // DB에서 로드됨
+let originalLeaves = {};
+let editingLeaves = {};
+let isModalEditing = false;
 
 // 제대(Unit) 설정
 const units = ['1제대', '2제대', '3제대', 'test'];

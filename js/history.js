@@ -14,15 +14,22 @@ async function loadHistory(dateStr) {
 
   try {
     const historyDocId = `${selectedUnit}_${dateStr}`;
-    const doc = await db.collection("leave_history").doc(historyDocId).get();
+    const historyRef = db.collection("leave_history").doc(historyDocId);
+    const doc = await historyRef.get();
+    let logSnapshot = null;
+    try {
+      logSnapshot = await historyRef.collection("logs").orderBy("timestamp", "desc").limit(200).get();
+    } catch (subcollectionError) {
+      console.warn("개별 이력 조회가 허용되지 않아 기존 이력 형식만 표시합니다.", subcollectionError);
+    }
 
-    if (!doc.exists) {
+    if (!doc.exists && (!logSnapshot || logSnapshot.empty)) {
       contentDiv.innerHTML = `<div class="empty-state"><p>[${selectedUnit}] ${dateStr} 일자의 변경 이력이 없습니다.</p></div>`;
       return;
     }
 
-    const data = doc.data();
-    const logs = data.logs || [];
+    const data = doc.exists ? doc.data() : {};
+    const logs = [...(data.logs || []), ...(logSnapshot ? logSnapshot.docs.map((item) => item.data()) : [])];
 
     if (logs.length === 0) {
       contentDiv.innerHTML = `<div class="empty-state"><p>[${selectedUnit}] ${dateStr} 일자의 변경 이력이 없습니다.</p></div>`;
@@ -43,7 +50,7 @@ async function loadHistory(dateStr) {
         log.changes.forEach((change) => {
           const actionText = change.type === "delete" ? "삭제" : "설정";
           const color = change.type === "delete" ? "#E74C3C" : "#00A86B";
-          changesHtml += `<li style="margin-bottom: 3px;"><strong>${change.empName}</strong>: ${change.reason} <span style="color: ${color}; font-size: 0.9em;">(${actionText})</span></li>`;
+          changesHtml += `<li style="margin-bottom: 3px;"><strong>${escapeHtml(change.empName)}</strong>: ${escapeHtml(change.reason)} <span style="color: ${color}; font-size: 0.9em;">(${actionText})</span></li>`;
         });
       } else {
         changesHtml += "<li>내역 없음</li>";
@@ -53,11 +60,11 @@ async function loadHistory(dateStr) {
       html += `
                 <div style="padding: 15px; border: 1px solid #e0e0e0; border-radius: 6px; background-color: #fafafa;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid #ddd; padding-bottom: 8px;">
-                        <span style="font-weight: bold; color: #333;">작업자: ${log.by}</span>
+                        <span style="font-weight: bold; color: #333;">작업자: ${escapeHtml(log.by)}</span>
                         <span style="color: #666; font-size: 0.9em;">${timeStr}</span>
                     </div>
                     <div style="font-size: 0.95em; color: #444;">
-                        <span style="display: inline-block; background: #e3f2fd; color: #1565c0; padding: 2px 8px; border-radius: 4px; font-weight: bold; margin-bottom: 5px;">대상일: ${log.leaveDate}</span>
+                        <span style="display: inline-block; background: #e3f2fd; color: #1565c0; padding: 2px 8px; border-radius: 4px; font-weight: bold; margin-bottom: 5px;">대상일: ${escapeHtml(log.leaveDate)}</span>
                         <div>${changesHtml}</div>
                     </div>
                 </div>

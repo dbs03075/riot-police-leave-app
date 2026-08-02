@@ -1,9 +1,8 @@
 // ========================================
-// 텔레그램 전송 설정은 config.js에서 읽습니다.
-// GitHub Pages 배포 시 GitHub Actions Secrets 값이 config.js에 주입됩니다.
+// 텔레그램 전송은 인증된 관리자만 Cloud Function을 통해 요청합니다.
+// 봇 토큰과 채팅 ID는 브라우저로 내려보내지 않습니다.
 // ========================================
-const TELEGRAM_BOT_TOKEN = firebaseConfig.telegramBotToken;
-const TELEGRAM_CHAT_ID = firebaseConfig.telegramChatId;
+const TELEGRAM_NOTIFICATION_URL = `https://asia-northeast3-${firebaseConfig.projectId}.cloudfunctions.net/telegramClientNotification`;
 
 // 변동사항 알림 ON/OFF (localStorage에 저장)
 let telegramChangeNotifyEnabled = localStorage.getItem('telegram_notify_on_change') !== 'false';
@@ -25,6 +24,10 @@ async function loadTelegramSettings() {
     const doc = await db.collection("settings").doc("telegram_notification").get();
     if (doc.exists) {
       const setting = doc.data();
+      if (typeof setting.changeNotificationsEnabled === "boolean") {
+        telegramChangeNotifyEnabled = setting.changeNotificationsEnabled;
+        if (changeToggle) changeToggle.checked = telegramChangeNotifyEnabled;
+      }
       telegramScheduledTime = setting.enabled ? setting.dailyTime || "" : "";
       if (scheduleTimeInput) scheduleTimeInput.value = telegramScheduledTime;
     }
@@ -33,9 +36,22 @@ async function loadTelegramSettings() {
   }
 }
 
-function saveTelegramChangeNotifySetting(enabled) {
+async function saveTelegramChangeNotifySetting(enabled) {
+  const previous = telegramChangeNotifyEnabled;
   telegramChangeNotifyEnabled = Boolean(enabled);
   localStorage.setItem("telegram_notify_on_change", String(telegramChangeNotifyEnabled));
+  try {
+    await db.collection("settings").doc("telegram_notification").set(
+      { changeNotificationsEnabled: telegramChangeNotifyEnabled, updatedAt: new Date().toISOString() },
+      { merge: true }
+    );
+  } catch (error) {
+    telegramChangeNotifyEnabled = previous;
+    const toggle = document.getElementById("telegramChangeNotifyToggle");
+    if (toggle) toggle.checked = previous;
+    console.error("변경 알림 설정 저장 실패:", error);
+    alert("변경 알림 설정을 저장하지 못했습니다.");
+  }
 }
 
 async function saveTelegramScheduleSetting() {
@@ -70,32 +86,47 @@ async function saveTelegramScheduleSetting() {
 }
 
 // 텔레그램 메시지 전송 함수
-function sendTelegramMessage(message) {
-  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
-    console.error("텔레그램 토큰 또는 채팅 ID가 config.js에 없습니다.");
-    return Promise.resolve(null);
+async function sendTelegramMessage(message) {
+  if (currentUser && currentUser.role === "admin" && auth.currentUser) {
+    try {
+      const idToken = await auth.currentUser.getIdToken();
+      const response = await fetch(TELEGRAM_NOTIFICATION_URL, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${idToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ message }),
+      });
+      if (!response.ok) throw new Error(`알림 서버 응답 오류 (${response.status})`);
+      console.log("✅ 텔레그램 서버 알림 전송 성공");
+      return await response.json();
+    } catch (serverError) {
+      console.warn("텔레그램 서버 전송 실패, 로컬 설정으로 재시도합니다.", serverError);
+    }
   }
 
-  return fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: message, parse_mode: "HTML" }),
-  })
-    .then((res) => res.json())
-    .then((data) => {
-      if (data.ok) {
-        console.log("✅ 텔레그램 알림 전송 성공");
-      } else {
-        console.error("❌ 텔레그램 알림 전송 실패", data);
-      }
-      return data;
-    })
-    .catch((err) => {
-      console.error("❌ 텔레그램 요청 오류", err);
-      return null;
+  const localToken = firebaseConfig.telegramBotToken;
+  const localChatId = firebaseConfig.telegramChatId;
+  if (!localToken || !localChatId) {
+    console.error("텔레그램 서버 연결과 로컬 설정을 모두 사용할 수 없습니다.");
+    return null;
+  }
+
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${localToken}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: localChatId, text: message, parse_mode: "HTML" }),
     });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.description || `Telegram 오류 (${response.status})`);
+    console.log("✅ 텔레그램 로컬 알림 전송 성공");
+    return result;
+  } catch (localError) {
+    console.error("❌ 텔레그램 로컬 전송 오류", localError);
+    return null;
+  }
 }
 
 // 연결 테스트
@@ -179,7 +210,9 @@ function buildTodayDetailMessage(dateStr) {
 
   const formatGroup = (key) => {
     if (!groups[key] || groups[key].length === 0) return "";
-    const listStr = groups[key].map((u) => (u.detail ? `${u.emp}[${u.detail}]` : u.emp)).join(", ");
+    const listStr = groups[key].map((u) =>
+      u.detail ? `${escapeTelegramHtml(u.emp)}[${escapeTelegramHtml(u.detail)}]` : escapeTelegramHtml(u.emp)
+    ).join(", ");
     return `${labelMap[key] || key} ${groups[key].length}(${listStr})`;
   };
 
@@ -260,21 +293,28 @@ let leavesUnsubscribe = null;
 let settingsUnsubscribe = null;
 let employeesUnsubscribe = null;
 let teamQuotaUnsubscribe = null;
+let isSavingLeave = false;
+
+function isDutyReason(reason) {
+  const value = typeof reason === "object" && reason ? reason.label : reason;
+  return ["personal_duty", "personal_rest", "multi_duty", "multi_rest", "etc"].includes(value);
+}
+
+function isSameLeaveValue(left, right) {
+  return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
+}
 
 async function saveLeave() {
-  if (!selectedDate) return;
+  if (!selectedDate || isSavingLeave) return;
 
   // 당직 관련 reason들
-  const dutyReasons = ["personal_duty", "personal_rest", "multi_duty", "multi_rest", "etc"];
-
   // ⚠️ 저장 시에는 편집 중인 고유 데이터(editingLeaves)를 사용함
   const leaveData = editingLeaves || {};
   console.log("저장 시도 데이터:", leaveData);
 
   const capacity = maxCapacity[selectedDate] || defaultMaxCapacity;
   const nonDutyCount = Object.values(leaveData).filter((reason) => {
-    const val = typeof reason === "object" ? reason.label : reason;
-    return !dutyReasons.includes(val);
+    return !isDutyReason(reason);
   }).length;
 
   // 정원 초과 체크도 nonDutyCount 기준으로
@@ -284,17 +324,9 @@ async function saveLeave() {
   }
 
   try {
-    const [year, month, day] = selectedDate.split("-");
-    const yearMonth = `${year}-${month}`;
-    const docId = `${selectedUnit}_${yearMonth}`;
-
-    const updateData = {
-      updatedAt: new Date().toISOString(),
-      updatedBy: (currentUser && currentUser.name) || "Unknown",
-    };
-
     const changesList = [];
     const historyLog = [];
+    const intendedChanges = {};
 
     // ⚠️ [핵심] 영화관 좌석처럼 충돌 방지를 위한 정밀 업데이트 (Granular Update)
     // 1. 추가되거나 수정된 사람만 찾기
@@ -304,7 +336,7 @@ async function saveLeave() {
 
       // 원본에 없거나 데이터가 바뀐 경우만 전송
       if (JSON.stringify(currentEdit) !== JSON.stringify(original)) {
-        updateData[`days.${day}.${empName}`] = currentEdit;
+        intendedChanges[empName] = currentEdit;
 
         const currentLabel = typeof currentEdit === "object" ? currentEdit.label : currentEdit;
         const reasonObj = leaveReasons.find((r) => r.value === currentLabel);
@@ -322,7 +354,7 @@ async function saveLeave() {
     // 2. 삭제(취소)된 사람만 찾기
     Object.keys(originalLeaves).forEach((empName) => {
       if (!editingLeaves[empName]) {
-        updateData[`days.${day}.${empName}`] = firebase.firestore.FieldValue.delete();
+        intendedChanges[empName] = null;
         changesList.push(`${empName}: 삭제됨`);
         historyLog.push({ type: "delete", empName, reason: "삭제됨" });
       }
@@ -330,81 +362,91 @@ async function saveLeave() {
 
     try {
       // ⚠️ 변경 사항이 하나라도 있을 때만 DB 작업 수행 (불필요 트래픽 방지)
-      const changes = Object.keys(updateData).filter((k) => k.startsWith("days."));
+      const changes = Object.keys(intendedChanges);
 
       if (changes.length > 0) {
-        // 문서가 없을 수도 있으니 기본 틀부터 생성(있는 경우 그대로 둠)
-        await db.collection("leaves").doc(docId).set(
-          {
+        isSavingLeave = true;
+        const saveButtons = document.querySelectorAll("#leaveModal .save-btn");
+        saveButtons.forEach((button) => (button.disabled = true));
+
+        const [year, month, day] = selectedDate.split("-");
+        const yearMonth = `${year}-${month}`;
+        const leaveRef = db.collection("leaves").doc(`${selectedUnit}_${yearMonth}`);
+        const capacityRef = db.collection("settings").doc(`maxCapacity_${selectedUnit}`);
+
+        const savedDay = await db.runTransaction(async (transaction) => {
+          const [leaveSnapshot, capacitySnapshot] = await Promise.all([
+            transaction.get(leaveRef),
+            transaction.get(capacityRef),
+          ]);
+          const latestDay = leaveSnapshot.exists ? { ...(leaveSnapshot.data().days?.[day] || {}) } : {};
+
+          for (const empName of changes) {
+            if (!isSameLeaveValue(latestDay[empName], originalLeaves[empName])) {
+              const conflictError = new Error("동일 직원 정보가 이미 변경되었습니다.");
+              conflictError.code = "leave/conflict";
+              conflictError.employeeName = empName;
+              throw conflictError;
+            }
+            if (intendedChanges[empName] === null) delete latestDay[empName];
+            else latestDay[empName] = intendedChanges[empName];
+          }
+
+          const latestCapacity = capacitySnapshot.exists
+            ? Number(capacitySnapshot.data()?.[selectedDate]) || defaultMaxCapacity
+            : defaultMaxCapacity;
+          const latestNonDutyCount = Object.values(latestDay).filter((reason) => !isDutyReason(reason)).length;
+          if (latestNonDutyCount > latestCapacity) {
+            const capacityError = new Error("정원을 초과했습니다.");
+            capacityError.code = "leave/capacity-exceeded";
+            capacityError.capacity = latestCapacity;
+            throw capacityError;
+          }
+
+          transaction.set(leaveRef, {
             unit: selectedUnit,
             month: yearMonth,
-          },
-          { merge: true }
-        );
+            days: { [day]: latestDay },
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedBy: (currentUser && currentUser.name) || "Unknown",
+          }, { merge: true });
 
-        // 정밀하게 딱 바뀐 필드(사람)만 업데이트! (여기서 충돌이 방지됨)
-        await db.collection("leaves").doc(docId).update(updateData);
+          return latestDay;
+        });
 
-        // 변동 내역 이력(History) 저장
+        const today = new Date();
+        const offset = today.getTimezoneOffset() * 60000;
+        const localDateStr = new Date(today - offset).toISOString().split("T")[0];
+        const historyRef = db.collection("leave_history").doc(`${selectedUnit}_${localDateStr}`);
+        const changeEntry = {
+          timestamp: new Date().toISOString(),
+          by: (currentUser && currentUser.name) || "Unknown",
+          leaveDate: selectedDate,
+          changes: historyLog,
+        };
         try {
-          const today = new Date();
-          // 로컬 타임존 반영된 날짜 문자열(YYYY-MM-DD)
-          const offset = today.getTimezoneOffset() * 60000;
-          const localDateStr = new Date(today - offset).toISOString().split("T")[0];
-          const historyDocId = `${selectedUnit}_${localDateStr}`;
-
-          const changeEntry = {
-            timestamp: new Date().toISOString(),
-            by: (currentUser && currentUser.name) || "Unknown",
-            leaveDate: selectedDate,
-            changes: historyLog,
-          };
-
-          console.log("변동 이력 저장 시도:", historyDocId, changeEntry);
-
-          await db
-            .collection("leave_history")
-            .doc(historyDocId)
-            .set(
-              {
-                date: localDateStr,
-                unit: selectedUnit,
-                logs: firebase.firestore.FieldValue.arrayUnion(changeEntry),
-              },
-              { merge: true }
-            );
-
-          console.log("✓ 변동 이력 저장 성공!");
+          await historyRef.set({ date: localDateStr, unit: selectedUnit }, { merge: true });
+          await historyRef.collection("logs").add(changeEntry);
         } catch (historyError) {
-          console.error("❌ 변동 이력 저장 실패 (보안 규칙 등을 확인하세요):", historyError);
-          alert(
-            "⚠️ 경고: 연가 데이터는 저장되었으나, 변경 이력 기록에 실패했습니다.\n(Firebase Firestore 보안 규칙 등 권한 확인이 필요합니다)\n\n에러 메시지: " +
-              historyError.message
-          );
+          console.warn("개별 변경 이력 저장 실패, 기존 이력 형식으로 재시도합니다.", historyError);
+          await historyRef.set({
+            date: localDateStr,
+            unit: selectedUnit,
+            logs: firebase.firestore.FieldValue.arrayUnion(changeEntry),
+          }, { merge: true });
         }
 
         // 사용자에게 알림
         const summaryText = `[${selectedDate}] 연가 변동사항:\n` + changesList.join("\n");
         alert("저장 완료\n\n" + summaryText);
 
-        // 텔레그램 변동사항 알림 전송 (ON일 때만)
-        if (telegramChangeNotifyEnabled) {
-          const dateObj = new Date(selectedDate + "T00:00:00");
-          const dateDisplay = dateObj.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" });
-          const actor = (currentUser && currentUser.name) || "관리자";
-          let telegramMessage = `🔔 <b>[${selectedUnit}] 연가 변동사항</b>\n`;
-          telegramMessage += `📅 대상일: ${dateDisplay}\n`;
-          telegramMessage += `👤 작업자: ${actor}\n`;
-          telegramMessage += `──────────────────\n`;
-          telegramMessage += changesList.join("\n");
-          sendTelegramMessage(telegramMessage);
-        }
+        leaves[selectedDate] = JSON.parse(JSON.stringify(savedDay));
       }
 
       // 전역 메모리 최신화 (성공 시에만)
-      if (Object.keys(editingLeaves).length === 0) {
+      if (changes.length === 0 && Object.keys(editingLeaves).length === 0) {
         delete leaves[selectedDate];
-      } else {
+      } else if (changes.length === 0) {
         leaves[selectedDate] = JSON.parse(JSON.stringify(editingLeaves));
       }
 
@@ -418,7 +460,16 @@ async function saveLeave() {
     console.log("✓ Firestore에 저장되었습니다");
   } catch (error) {
     console.error("❌ 저장 실패:", error);
-    alert("데이터 저장 중 오류가 발생했습니다");
+    if (error.code === "leave/conflict") {
+      alert(`${error.employeeName || "해당 직원"}님의 정보가 다른 사용자에 의해 변경되었습니다.\n최신 내용을 다시 확인한 뒤 저장해주세요.`);
+    } else if (error.code === "leave/capacity-exceeded") {
+      alert(`최대 인원(${error.capacity || capacity}명)에 도달했습니다.`);
+    } else {
+      alert("데이터 저장 중 오류가 발생했습니다");
+    }
+  } finally {
+    isSavingLeave = false;
+    document.querySelectorAll("#leaveModal .save-btn").forEach((button) => (button.disabled = false));
   }
 }
 
@@ -587,7 +638,7 @@ function setupRealtimeSync() {
 async function saveSettingToFirebase(dateStr, capacity) {
   try {
     maxCapacity[dateStr] = capacity;
-    await db.collection("settings").doc(`maxCapacity_${selectedUnit}`).set(maxCapacity, { merge: true });
+    await db.collection("settings").doc(`maxCapacity_${selectedUnit}`).set({ [dateStr]: capacity }, { merge: true });
     console.log(`✓ [${selectedUnit}] 설정값 저장됨:`, dateStr, capacity);
   } catch (error) {
     console.error("❌ 설정값 저장 실패:", error);
@@ -600,11 +651,10 @@ async function deleteSettingFromFirebase(dateStr) {
   try {
     delete maxCapacity[dateStr];
 
-    if (Object.keys(maxCapacity).length === 0) {
-      await db.collection("settings").doc(`maxCapacity_${selectedUnit}`).delete();
-    } else {
-      await db.collection("settings").doc(`maxCapacity_${selectedUnit}`).set(maxCapacity);
-    }
+    await db.collection("settings").doc(`maxCapacity_${selectedUnit}`).set(
+      { [dateStr]: firebase.firestore.FieldValue.delete() },
+      { merge: true }
+    );
 
     console.log(`✓ [${selectedUnit}] 설정값 삭제됨:`, dateStr);
   } catch (error) {
@@ -622,10 +672,13 @@ async function saveTeamQuotaToFirebase(dateStr, memo) {
       teamQuotas[dateStr] = memo;
     }
 
-    if (Object.keys(teamQuotas).length === 0) {
-      await db.collection("settings").doc(`teamQuota_${selectedUnit}`).delete();
+    if (!memo) {
+      await db.collection("settings").doc(`teamQuota_${selectedUnit}`).set(
+        { [dateStr]: firebase.firestore.FieldValue.delete() },
+        { merge: true }
+      );
     } else {
-      await db.collection("settings").doc(`teamQuota_${selectedUnit}`).set(teamQuotas);
+      await db.collection("settings").doc(`teamQuota_${selectedUnit}`).set({ [dateStr]: memo }, { merge: true });
     }
     console.log(`✓ [${selectedUnit}] 팀 정원 메모 저장됨:`, dateStr, memo);
   } catch (error) {

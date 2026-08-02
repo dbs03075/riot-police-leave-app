@@ -36,17 +36,21 @@ jobs:
             -e 's|%%FIREBASE_MESSAGING_SENDER_ID%%|${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}|g' \
             -e 's|%%FIREBASE_APP_ID%%|${{ secrets.FIREBASE_APP_ID }}|g' \
             -e 's|%%FIREBASE_MEASUREMENT_ID%%|${{ secrets.FIREBASE_MEASUREMENT_ID }}|g' \
-            -e 's|%%TELEGRAM_BOT_TOKEN%%|${{ secrets.TELEGRAM_BOT_TOKEN }}|g' \
-            -e 's|%%TELEGRAM_CHAT_ID%%|${{ secrets.TELEGRAM_CHAT_ID }}|g' \
             js/config.template.js > js/config.js
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
+      - name: Prepare public site
+        run: |
+          mkdir public
+          cp index.html public/
+          cp -R css js public/
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: '.'   # 루트 디렉토리 전체를 배포
+          path: 'public'
 
       - name: Deploy to GitHub Pages
         id: deployment

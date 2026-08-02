@@ -133,7 +133,7 @@ function renderCalendar() {
         displayStr = `${dutyGroup.team}(${getLabel(dutyGroup.label)})`;
       }
 
-      dutyItemsHtml += `<div class="leave-badge ${dutyGroup.label} duty-badge">${displayStr}</div>`;
+      dutyItemsHtml += `<div class="leave-badge ${dutyGroup.label} duty-badge">${escapeHtml(displayStr)}</div>`;
       totalDisplayItems++;
       displayedDutyPeople += dutyGroup.count;
     });
@@ -151,7 +151,7 @@ function renderCalendar() {
       ) {
         displayStr = `${teamPrefix}${entry.name}(${getLabel(entry.val)}, ${entry.detail})`;
       }
-      leaveItemsHtml += `<div class="leave-badge ${entry.val}">${displayStr}</div>`;
+      leaveItemsHtml += `<div class="leave-badge ${entry.val}">${escapeHtml(displayStr)}</div>`;
       totalDisplayItems++;
       displayedRegularPeople++;
     });
@@ -168,7 +168,7 @@ function renderCalendar() {
     }
 
     const currentMemo = teamQuotas[dateStr] || "";
-    const memoHtml = currentMemo ? `<span class="team-quota-memo">${currentMemo}</span>` : "";
+    const memoHtml = currentMemo ? `<span class="team-quota-memo">${escapeHtml(currentMemo)}</span>` : "";
 
     html += `<div class="${classes}" onclick="selectDate('${dateStr}')">
             <div class="day-content">

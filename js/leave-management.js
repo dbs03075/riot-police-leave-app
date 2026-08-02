@@ -165,12 +165,14 @@ function updateLeaveItems() {
             const reasonObj = leaveReasons.find(r => r.value === val);
             const reasonLabelText = reasonObj ? reasonObj.label : val;
             const displayDetail = detail ? ` (${detail})` : '';
+            const safeDisplayReason = escapeHtml(`${reasonLabelText}${displayDetail}`);
+            const safeEmployeeName = escapeHtml(empName);
 
             html += `
                 <div class="leave-item">
                     <div>
-                        <div class="leave-item-name">${empName}</div>
-                        <div class="employee-reason">${reasonLabelText}${displayDetail}</div>
+                        <div class="leave-item-name">${safeEmployeeName}</div>
+                        <div class="employee-reason">${safeDisplayReason}</div>
                     </div>
                 </div>
             `;

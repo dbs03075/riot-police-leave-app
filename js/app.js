@@ -18,14 +18,7 @@ document.addEventListener('keypress', (e) => {
 function changeUnit(unit) {
     selectedUnit = unit;
     console.log(`✓ '${unit}' 선택됨`);
-    
-    // 데이터 새로 로드 -> 모달이 열려있으면 업데이트
-    loadEmployeesFromDB().then(() => {
-        if (document.getElementById('adminView').style.display === 'block') {
-            renderEmployeeList();
-        }
-    });
-    
+
     // 실시간 동기화 재설정 (내부에서 기존 구독 해제 및 renderCalendar 호출)
     setupRealtimeSync();
 }

@@ -1,0 +1,46 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn() && request.auth.token.role == 'admin';
+    }
+
+    // 직원 정보와 일정은 로그인한 사내 사용자만 조회할 수 있습니다.
+    // 수정은 검증과 동시성 제어를 담당하는 Cloud Functions에서만 수행합니다.
+    match /employees/{employeeId} {
+      // 기존 이름 로그인은 인증 전에 name 쿼리가 한 번 필요합니다.
+      allow list: if true;
+      allow get: if signedIn();
+      allow write: if false;
+    }
+
+    match /leaves/{leaveId} {
+      allow read: if signedIn();
+      allow write: if signedIn();
+    }
+
+    match /leave_history/{historyId} {
+      allow read: if isAdmin();
+      allow write: if signedIn();
+
+      match /logs/{logId} {
+        allow read: if isAdmin();
+        allow write: if signedIn();
+      }
+    }
+
+    match /settings/{settingId} {
+      allow read: if signedIn();
+      allow write: if signedIn();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

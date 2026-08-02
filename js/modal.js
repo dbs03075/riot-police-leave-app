@@ -99,10 +99,11 @@ function showEmployeeView() {
         const detail = typeof userLeaveData === 'object' ? userLeaveData.reason : '';
         const reasonLabel = leaveReasons.find(r => r.value === val)?.label || '';
         const displayDetail = detail ? ` (${detail})` : '';
+        const safeReasonDisplay = escapeHtml(`${reasonLabel}${displayDetail}`);
 
         document.getElementById('employeeCurrentStatus').innerHTML = `
             <strong style="color: #0066CC;">✓ 연가 중입니다</strong><br>
-            <span style="font-size: 13px; color: #95A0A8; margin-top: 4px; display: block;">사유: ${reasonLabel}${displayDetail}</span>
+            <span style="font-size: 13px; color: #95A0A8; margin-top: 4px; display: block;">사유: ${safeReasonDisplay}</span>
         `;
     } else {
         btn.textContent = '연가 신청';
