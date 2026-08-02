@@ -3,6 +3,7 @@
 // 봇 토큰과 채팅 ID는 브라우저로 내려보내지 않습니다.
 // ========================================
 const TELEGRAM_NOTIFICATION_URL = `https://asia-northeast3-${firebaseConfig.projectId}.cloudfunctions.net/telegramClientNotification`;
+const TELEGRAM_SCHEDULE_URL = `https://asia-northeast3-${firebaseConfig.projectId}.cloudfunctions.net/updateTelegramSchedule`;
 
 // 변동사항 알림 ON/OFF (localStorage에 저장)
 let telegramChangeNotifyEnabled = localStorage.getItem('telegram_notify_on_change') !== 'false';
@@ -63,25 +64,36 @@ async function saveTelegramScheduleSetting() {
     return;
   }
 
-  telegramScheduledTime = value;
-  if (telegramScheduledTime) {
-    localStorage.setItem("telegram_daily_schedule_time", telegramScheduledTime);
-  } else {
-    localStorage.removeItem("telegram_daily_schedule_time");
+  if (!currentUser || currentUser.role !== "admin" || !auth.currentUser) {
+    alert("관리자 로그인 후 정기 전송 시간을 변경할 수 있습니다.");
+    return;
   }
+
+  const previous = telegramScheduledTime;
   try {
-    await db.collection("settings").doc("telegram_notification").set(
-      {
-        enabled: Boolean(telegramScheduledTime),
-        dailyTime: telegramScheduledTime || null,
-        updatedAt: new Date().toISOString(),
+    const idToken = await auth.currentUser.getIdToken();
+    const response = await fetch(TELEGRAM_SCHEDULE_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${idToken}`,
+        "Content-Type": "application/json",
       },
-      { merge: true }
-    );
-    console.log("텔레그램 정기 전송 설정이 서버에 저장되었습니다.");
+      body: JSON.stringify({ enabled: Boolean(value), dailyTime: value || null }),
+    });
+    if (!response.ok) throw new Error(`정기 전송 서버 응답 오류 (${response.status})`);
+
+    telegramScheduledTime = value;
+    if (telegramScheduledTime) {
+      localStorage.setItem("telegram_daily_schedule_time", telegramScheduledTime);
+    } else {
+      localStorage.removeItem("telegram_daily_schedule_time");
+    }
+    console.log("텔레그램 전용 예약 작업이 갱신되었습니다.");
   } catch (error) {
+    telegramScheduledTime = previous;
+    if (scheduleTimeInput) scheduleTimeInput.value = previous;
     console.error("텔레그램 정기 전송 설정 저장 실패:", error);
-    alert("정기 전송 설정을 서버에 저장하지 못했습니다. 관리자 권한과 Firestore 규칙을 확인해주세요.");
+    alert("정기 전송 시간을 변경하지 못했습니다. 잠시 후 다시 시도해주세요.");
   }
 }
 

@@ -10,6 +10,11 @@ const telegramBotToken = defineSecret("TELEGRAM_BOT_TOKEN");
 const telegramWebhookSecret = defineSecret("TELEGRAM_WEBHOOK_SECRET");
 const telegramAllowedChatId = defineSecret("TELEGRAM_ALLOWED_CHAT_ID");
 const db = getFirestore();
+let schedulerClient;
+
+const FUNCTIONS_REGION = "asia-northeast3";
+const SCHEDULER_JOB_ID = "telegram-daily-leaves";
+const SCHEDULER_CALLER_SERVICE_ACCOUNT = "251474038020-compute@developer.gserviceaccount.com";
 
 const UNITS = ["1제대", "2제대", "3제대"];
 const DEFAULT_MAX_CAPACITY = 4;
@@ -146,6 +151,99 @@ async function getVerifiedAdmin(request) {
   return decodedToken;
 }
 
+function getSchedulerNames() {
+  if (!schedulerClient) {
+    const { CloudSchedulerClient } = require("@google-cloud/scheduler");
+    schedulerClient = new CloudSchedulerClient();
+  }
+  const projectId = process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT;
+  if (!projectId) throw new Error("Google Cloud project ID is unavailable");
+  const parent = schedulerClient.locationPath(projectId, FUNCTIONS_REGION);
+  const name = schedulerClient.jobPath(projectId, FUNCTIONS_REGION, SCHEDULER_JOB_ID);
+  const targetUrl = `https://${FUNCTIONS_REGION}-${projectId}.cloudfunctions.net/sendScheduledDailyLeavesV2`;
+  return { parent, name, targetUrl };
+}
+
+async function updateDedicatedTelegramJob(enabled, dailyTime) {
+  const { parent, name, targetUrl } = getSchedulerNames();
+  const [hour = "0", minute = "0"] = (dailyTime || "00:00").split(":");
+  const schedule = `${Number(minute)} ${Number(hour)} * * *`;
+  const httpTarget = {
+    uri: targetUrl,
+    httpMethod: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: Buffer.from(JSON.stringify({ source: "telegram-daily-leaves" })),
+    oidcToken: {
+      serviceAccountEmail: SCHEDULER_CALLER_SERVICE_ACCOUNT,
+      audience: targetUrl,
+    },
+  };
+
+  let existing = null;
+  try {
+    [existing] = await schedulerClient.getJob({ name });
+  } catch (error) {
+    if (Number(error.code) !== 5) throw error;
+  }
+
+  if (!existing) {
+    [existing] = await schedulerClient.createJob({
+      parent,
+      job: { name, schedule, timeZone: "Asia/Seoul", httpTarget },
+    });
+  } else {
+    [existing] = await schedulerClient.updateJob({
+      job: { name, schedule, timeZone: "Asia/Seoul", httpTarget },
+      updateMask: { paths: ["schedule", "time_zone", "http_target"] },
+    });
+  }
+
+  const isPaused = existing.state === "PAUSED" || Number(existing.state) === 2;
+  if (enabled && isPaused) {
+    await schedulerClient.resumeJob({ name });
+  } else if (!enabled && !isPaused) {
+    await schedulerClient.pauseJob({ name });
+  }
+}
+
+exports.updateTelegramSchedule = onRequest(
+  { region: FUNCTIONS_REGION, invoker: "public", cors: true },
+  async (req, res) => {
+    if (req.method !== "POST") return res.status(405).json({ ok: false });
+
+    let decodedToken;
+    try {
+      decodedToken = await getVerifiedAdmin(req);
+    } catch (error) {
+      return res.status(403).json({ ok: false, code: "admin-required" });
+    }
+
+    try {
+      const dailyTime = typeof req.body?.dailyTime === "string" ? req.body.dailyTime.trim() : "";
+      const enabled = Boolean(req.body?.enabled && dailyTime);
+      if (dailyTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(dailyTime)) {
+        return res.status(400).json({ ok: false, code: "invalid-time" });
+      }
+
+      await updateDedicatedTelegramJob(enabled, dailyTime);
+      await db.collection("settings").doc("telegram_notification").set(
+        {
+          enabled,
+          dailyTime: enabled ? dailyTime : null,
+          scheduleMode: "dedicated-cloud-scheduler",
+          updatedAt: new Date().toISOString(),
+          updatedBy: decodedToken.email || decodedToken.uid,
+        },
+        { merge: true }
+      );
+      return res.status(200).json({ ok: true, enabled, dailyTime: enabled ? dailyTime : null });
+    } catch (error) {
+      console.error("Telegram schedule update failed", error);
+      return res.status(500).json({ ok: false, code: "schedule-update-failed" });
+    }
+  }
+);
+
 // 브라우저의 관리자 화면이 보내는 알림을 처리합니다. 토큰·채팅 ID는 서버 시크릿으로만 사용합니다.
 exports.telegramClientNotification = onRequest(
   {
@@ -201,40 +299,61 @@ exports.telegramWebhook = onRequest(
   }
 );
 
-// Cloud Scheduler 작업 하나가 매분 설정을 확인합니다. 실제 텔레그램 전송은 하루 한 번뿐입니다.
+async function sendConfiguredDailyLeaves({ requireExactTime = false } = {}) {
+  const settingRef = db.collection("settings").doc("telegram_notification");
+  const settingSnapshot = await settingRef.get();
+  if (!settingSnapshot.exists) return { sent: false, reason: "missing-setting" };
+
+  const setting = settingSnapshot.data();
+  const now = getSeoulDateTime();
+  if (!setting.enabled) return { sent: false, reason: "disabled" };
+  if (requireExactTime && setting.dailyTime !== now.time) return { sent: false, reason: "not-scheduled-time" };
+
+  const sendKey = `${now.date}_${setting.dailyTime || now.time}`;
+  const shouldSend = await db.runTransaction(async (transaction) => {
+    const latest = await transaction.get(settingRef);
+    const latestSetting = latest.exists ? latest.data() : null;
+    if (!latestSetting || latestSetting.lastSentKey === sendKey) return false;
+    transaction.set(settingRef, { lastSentKey: sendKey, lastSentAt: new Date().toISOString() }, { merge: true });
+    return true;
+  });
+
+  if (!shouldSend) return { sent: false, reason: "already-sent" };
+
+  try {
+    await sendTelegramMessage(telegramAllowedChatId.value().trim(), await buildTodayLeavesMessage());
+    return { sent: true };
+  } catch (error) {
+    console.error("Scheduled daily Telegram notification failed", error);
+    await settingRef.set({ lastSentKey: null }, { merge: true });
+    throw error;
+  }
+}
+
+// 전환 중 안전장치: 기존 Firebase 관리 작업은 자정에 한 번만 실행하며 매분 확인하지 않습니다.
 exports.sendScheduledDailyLeaves = onSchedule(
   {
-    schedule: "* * * * *",
+    schedule: "0 0 * * *",
     timeZone: "Asia/Seoul",
-    region: "asia-northeast3",
+    region: FUNCTIONS_REGION,
     secrets: [telegramBotToken, telegramAllowedChatId],
   },
-  async () => {
-    const settingRef = db.collection("settings").doc("telegram_notification");
-    const settingSnapshot = await settingRef.get();
-    if (!settingSnapshot.exists) return;
+  async () => sendConfiguredDailyLeaves({ requireExactTime: true })
+);
 
-    const setting = settingSnapshot.data();
-    const now = getSeoulDateTime();
-    if (!setting.enabled || setting.dailyTime !== now.time) return;
-
-    const sendKey = `${now.date}_${now.time}`;
-    const shouldSend = await db.runTransaction(async (transaction) => {
-      const latest = await transaction.get(settingRef);
-      const latestSetting = latest.data();
-      if (!latest.exists || latestSetting.lastSentKey === sendKey) return false;
-      transaction.set(settingRef, { lastSentKey: sendKey, lastSentAt: new Date().toISOString() }, { merge: true });
-      return true;
-    });
-
-    if (!shouldSend) return;
-
+exports.sendScheduledDailyLeavesV2 = onRequest(
+  {
+    region: FUNCTIONS_REGION,
+    invoker: SCHEDULER_CALLER_SERVICE_ACCOUNT,
+    secrets: [telegramBotToken, telegramAllowedChatId],
+  },
+  async (req, res) => {
+    if (req.method !== "POST") return res.status(405).json({ ok: false });
     try {
-      await sendTelegramMessage(telegramAllowedChatId.value().trim(), await buildTodayLeavesMessage());
+      const result = await sendConfiguredDailyLeaves();
+      return res.status(200).json({ ok: true, ...result });
     } catch (error) {
-      console.error("정기 당일 연가자 현황 전송 실패", error);
-      await settingRef.set({ lastSentKey: null }, { merge: true });
-      throw error;
+      return res.status(500).json({ ok: false });
     }
   }
 );
