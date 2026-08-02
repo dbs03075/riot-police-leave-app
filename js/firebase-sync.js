@@ -87,44 +87,26 @@ async function saveTelegramScheduleSetting() {
 
 // 텔레그램 메시지 전송 함수
 async function sendTelegramMessage(message) {
-  if (currentUser && currentUser.role === "admin" && auth.currentUser) {
-    try {
-      const idToken = await auth.currentUser.getIdToken();
-      const response = await fetch(TELEGRAM_NOTIFICATION_URL, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${idToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ message }),
-      });
-      if (!response.ok) throw new Error(`알림 서버 응답 오류 (${response.status})`);
-      console.log("✅ 텔레그램 서버 알림 전송 성공");
-      return await response.json();
-    } catch (serverError) {
-      console.warn("텔레그램 서버 전송 실패, 로컬 설정으로 재시도합니다.", serverError);
-    }
-  }
-
-  const localToken = firebaseConfig.telegramBotToken;
-  const localChatId = firebaseConfig.telegramChatId;
-  if (!localToken || !localChatId) {
-    console.error("텔레그램 서버 연결과 로컬 설정을 모두 사용할 수 없습니다.");
+  if (!currentUser || currentUser.role !== "admin" || !auth.currentUser) {
+    console.error("관리자 로그인 후 텔레그램 알림을 전송할 수 있습니다.");
     return null;
   }
 
   try {
-    const response = await fetch(`https://api.telegram.org/bot${localToken}/sendMessage`, {
+    const idToken = await auth.currentUser.getIdToken();
+    const response = await fetch(TELEGRAM_NOTIFICATION_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: localChatId, text: message, parse_mode: "HTML" }),
+      headers: {
+        "Authorization": `Bearer ${idToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ message }),
     });
-    const result = await response.json();
-    if (!response.ok || !result.ok) throw new Error(result.description || `Telegram 오류 (${response.status})`);
-    console.log("✅ 텔레그램 로컬 알림 전송 성공");
-    return result;
-  } catch (localError) {
-    console.error("❌ 텔레그램 로컬 전송 오류", localError);
+    if (!response.ok) throw new Error(`알림 서버 응답 오류 (${response.status})`);
+    console.log("✅ 텔레그램 서버 알림 전송 성공");
+    return await response.json();
+  } catch (error) {
+    console.error("❌ 텔레그램 서버 전송 오류", error);
     return null;
   }
 }
