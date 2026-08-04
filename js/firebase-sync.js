@@ -14,7 +14,7 @@ function getLocalDateString(date = new Date()) {
   return new Date(date - offset).toISOString().split("T")[0];
 }
 
-async function loadTelegramSettings() {
+async function loadTelegramSettings({ syncSchedule = false } = {}) {
   const changeToggle = document.getElementById("telegramChangeNotifyToggle");
   const scheduleTimeInput = document.getElementById("telegramScheduleTime");
 
@@ -31,10 +31,46 @@ async function loadTelegramSettings() {
       }
       telegramScheduledTime = setting.enabled ? setting.dailyTime || "" : "";
       if (scheduleTimeInput) scheduleTimeInput.value = telegramScheduledTime;
+
+      // 기존 설정이 전용 예약 작업과 아직 연결되지 않았다면 관리자 로그인 때 한 번만 동기화합니다.
+      if (
+        syncSchedule &&
+        currentUser?.role === "admin" &&
+        setting.enabled &&
+        telegramScheduledTime &&
+        setting.scheduleMode !== "dedicated-cloud-scheduler"
+      ) {
+        await updateTelegramScheduleOnServer(telegramScheduledTime);
+      }
     }
   } catch (error) {
     console.warn("텔레그램 정기 전송 설정을 불러오지 못했습니다.", error);
+    if (syncSchedule) {
+      alert("저장된 정기 전송 시간을 예약 서버와 연결하지 못했습니다. 설정 탭에서 시간을 다시 선택해주세요.");
+    }
   }
+}
+
+async function updateTelegramScheduleOnServer(value) {
+  if (!currentUser || currentUser.role !== "admin" || !auth.currentUser) {
+    throw new Error("관리자 로그인 후 정기 전송 시간을 변경할 수 있습니다.");
+  }
+
+  const idToken = await auth.currentUser.getIdToken();
+  const response = await fetch(TELEGRAM_SCHEDULE_URL, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${idToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ enabled: Boolean(value), dailyTime: value || null }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`정기 전송 서버 응답 오류 (${response.status})`);
+  }
+
+  return response.json();
 }
 
 async function saveTelegramChangeNotifySetting(enabled) {
@@ -71,16 +107,7 @@ async function saveTelegramScheduleSetting() {
 
   const previous = telegramScheduledTime;
   try {
-    const idToken = await auth.currentUser.getIdToken();
-    const response = await fetch(TELEGRAM_SCHEDULE_URL, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${idToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ enabled: Boolean(value), dailyTime: value || null }),
-    });
-    if (!response.ok) throw new Error(`정기 전송 서버 응답 오류 (${response.status})`);
+    await updateTelegramScheduleOnServer(value);
 
     telegramScheduledTime = value;
     if (telegramScheduledTime) {
@@ -294,8 +321,24 @@ function isDutyReason(reason) {
   return ["personal_duty", "personal_rest", "multi_duty", "multi_rest", "etc"].includes(value);
 }
 
+function normalizeLeaveValueForComparison(value) {
+  if (value === null || value === undefined) return null;
+  if (Array.isArray(value)) return value.map(normalizeLeaveValueForComparison);
+  if (typeof value !== "object") return value;
+
+  return Object.keys(value)
+    .sort()
+    .reduce((normalized, key) => {
+      if (value[key] !== undefined) {
+        normalized[key] = normalizeLeaveValueForComparison(value[key]);
+      }
+      return normalized;
+    }, {});
+}
+
 function isSameLeaveValue(left, right) {
-  return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
+  return JSON.stringify(normalizeLeaveValueForComparison(left)) ===
+    JSON.stringify(normalizeLeaveValueForComparison(right));
 }
 
 async function saveLeave() {
@@ -329,7 +372,7 @@ async function saveLeave() {
       const original = originalLeaves[empName];
 
       // 원본에 없거나 데이터가 바뀐 경우만 전송
-      if (JSON.stringify(currentEdit) !== JSON.stringify(original)) {
+      if (!isSameLeaveValue(currentEdit, original)) {
         intendedChanges[empName] = currentEdit;
 
         const currentLabel = typeof currentEdit === "object" ? currentEdit.label : currentEdit;
@@ -430,9 +473,25 @@ async function saveLeave() {
           }, { merge: true });
         }
 
+        // 연가 저장 성공 후 즉시 알림을 전송합니다. 알림 실패가 연가 저장을 취소시키지는 않습니다.
+        let telegramNotificationFailed = false;
+        if (telegramChangeNotifyEnabled) {
+          const telegramMessage =
+            `🔔 <b>[${escapeTelegramHtml(selectedUnit)}] 연가 변동사항</b>\n` +
+            `📅 대상일: ${escapeTelegramHtml(selectedDate)}\n` +
+            `👤 작업자: ${escapeTelegramHtml((currentUser && currentUser.name) || "관리자")}\n` +
+            `──────────────────\n` +
+            changesList.map((change) => escapeTelegramHtml(change)).join("\n");
+          const telegramResult = await sendTelegramMessage(telegramMessage);
+          telegramNotificationFailed = !telegramResult?.ok;
+        }
+
         // 사용자에게 알림
         const summaryText = `[${selectedDate}] 연가 변동사항:\n` + changesList.join("\n");
-        alert("저장 완료\n\n" + summaryText);
+        const telegramWarning = telegramNotificationFailed
+          ? "\n\n※ 연가는 저장됐지만 텔레그램 알림 전송은 실패했습니다."
+          : "";
+        alert("저장 완료\n\n" + summaryText + telegramWarning);
 
         leaves[selectedDate] = JSON.parse(JSON.stringify(savedDay));
       }
@@ -467,26 +526,73 @@ async function saveLeave() {
   }
 }
 
-// 📌 Firestore에서 모든 연가 데이터 로드
+function getCurrentYearMonth() {
+  const year = currentDate.getFullYear();
+  const month = String(currentDate.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+}
+
+function applyMonthlyLeavesDocument(doc, yearMonth) {
+  leaves = {};
+
+  if (doc.exists) {
+    const data = doc.data();
+    if (data.days) {
+      for (const [day, employees] of Object.entries(data.days)) {
+        leaves[`${yearMonth}-${day}`] = employees;
+      }
+    }
+  }
+}
+
+// 📌 Firestore에서 현재 조회 월의 연가 데이터만 로드
 async function loadLeavesFromFirebase() {
   try {
-    const snapshot = await db.collection("leaves").where("unit", "==", selectedUnit).get();
-    leaves = {};
-
-    snapshot.forEach((doc) => {
-      const data = doc.data();
-      const yearMonth = data.month;
-      if (data.days) {
-        for (const [day, employees] of Object.entries(data.days)) {
-          leaves[`${yearMonth}-${day}`] = employees;
-        }
-      }
-    });
-    console.log(`✓ [${selectedUnit}] Firestore에서 연가 데이터 로드 완료 (월별 그룹화 적용)`);
+    const yearMonth = getCurrentYearMonth();
+    const doc = await db.collection("leaves").doc(`${selectedUnit}_${yearMonth}`).get();
+    applyMonthlyLeavesDocument(doc, yearMonth);
+    console.log(`✓ [${selectedUnit}] ${yearMonth} 연가 데이터 로드 완료`);
     renderCalendar();
   } catch (error) {
     console.error("❌ 연가 데이터 로드 실패:", error);
   }
+}
+
+function setupLeavesRealtimeSync() {
+  if (leavesUnsubscribe) {
+    leavesUnsubscribe();
+    leavesUnsubscribe = null;
+  }
+
+  const yearMonth = getCurrentYearMonth();
+  const subscribedUnit = selectedUnit;
+  leaves = {};
+  renderCalendar();
+
+  leavesUnsubscribe = db
+    .collection("leaves")
+    .doc(`${subscribedUnit}_${yearMonth}`)
+    .onSnapshot(
+      (doc) => {
+        // 월을 빠르게 이동한 뒤 이전 구독 콜백이 도착하더라도 무시합니다.
+        if (subscribedUnit !== selectedUnit || yearMonth !== getCurrentYearMonth()) return;
+
+        applyMonthlyLeavesDocument(doc, yearMonth);
+        console.log(`🔄 [${subscribedUnit}] ${yearMonth} 연가 데이터 실시간 동기화`);
+        renderCalendar();
+
+        if (selectedDate && document.getElementById("leaveModal").classList.contains("active")) {
+          if (currentUser && currentUser.role === "admin") {
+            if (!isModalEditing) updateLeaveItems();
+          } else {
+            showEmployeeView();
+          }
+        }
+      },
+      (error) => {
+        console.error("❌ 연가 데이터 동기화 오류:", error);
+      }
+    );
 }
 
 // 📌 Firestore에서 설정값 로드
@@ -516,48 +622,12 @@ async function loadSettingsFromFirebase() {
 // 📌 실시간 동기화 설정
 function setupRealtimeSync() {
   // 기존 구독 해제
-  if (leavesUnsubscribe) leavesUnsubscribe();
   if (settingsUnsubscribe) settingsUnsubscribe();
   if (employeesUnsubscribe) employeesUnsubscribe();
   if (teamQuotaUnsubscribe) teamQuotaUnsubscribe();
 
-  // 연가 데이터 실시간 동기화
-  leavesUnsubscribe = db
-    .collection("leaves")
-    .where("unit", "==", selectedUnit)
-    .onSnapshot(
-      (snapshot) => {
-        leaves = {};
-        snapshot.forEach((doc) => {
-          const data = doc.data();
-          const yearMonth = data.month;
-          if (data.days) {
-            for (const [day, employees] of Object.entries(data.days)) {
-              leaves[`${yearMonth}-${day}`] = employees;
-            }
-          }
-        });
-        console.log(`🔄 [${selectedUnit}] 연가 데이터 실시간 동기화됨 (월별 그룹화)`);
-
-        // 배경 달력 업데이트
-        renderCalendar();
-
-        // 모달 업데이트 (열려 있는 경우)
-        // ⚠️ 편집 중(isModalEditing)에는 UI 기반인 leaves 대신 editingLeaves를 쓰므로,
-        // ⚠️ 여기서는 일반 사용자용 화면이나 관리자용 '현재 연가자 목록'의 보조적 업데이트만 수행함.
-        if (selectedDate && document.getElementById("leaveModal").classList.contains("active")) {
-          if (currentUser && currentUser.role === "admin") {
-            // 관리자 모달 내부 리스트는 편집 중이 아닐 때만 동기화 데이터 반영 (이미 editingLeaves가 우선임)
-            if (!isModalEditing) updateLeaveItems();
-          } else {
-            showEmployeeView();
-          }
-        }
-      },
-      (error) => {
-        console.error("❌ 연가 데이터 동기화 에러:", error);
-      }
-    );
+  // 연가 데이터는 현재 조회 월의 문서 하나만 구독합니다.
+  setupLeavesRealtimeSync();
 
   // 설정값 실시간 동기화
   settingsUnsubscribe = db

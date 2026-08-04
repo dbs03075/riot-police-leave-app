@@ -3,6 +3,8 @@ const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { defineSecret } = require("firebase-functions/params");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
+const { getAuth } = require("firebase-admin/auth");
+const { isDeepStrictEqual } = require("node:util");
 
 initializeApp();
 
@@ -17,6 +19,7 @@ const SCHEDULER_JOB_ID = "telegram-daily-leaves";
 const SCHEDULER_CALLER_SERVICE_ACCOUNT = "251474038020-compute@developer.gserviceaccount.com";
 
 const UNITS = ["1제대", "2제대", "3제대"];
+const SAVE_UNITS = [...UNITS, "test"];
 const DEFAULT_MAX_CAPACITY = 4;
 const DUTY_REASONS = new Set(["personal_duty", "personal_rest", "multi_duty", "multi_rest", "etc"]);
 const REASON_LABELS = {
@@ -35,6 +38,7 @@ const REASON_LABELS = {
 };
 const UPPER_REASON_ORDER = ["annual", "special", "education", "out_of_area_travel", "sick", "compensatory_rest", "leave_early_late"];
 const LOWER_REASON_ORDER = ["personal_duty", "personal_rest", "multi_duty", "multi_rest", "etc"];
+const ALLOWED_REASONS = new Set([...UPPER_REASON_ORDER, ...LOWER_REASON_ORDER]);
 
 function getSeoulDateTime() {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -55,6 +59,12 @@ function getSeoulDateTime() {
 
 function getSeoulDate() {
   return getSeoulDateTime().date;
+}
+
+function getNextDate(date) {
+  const [year, month, day] = date.split("-").map(Number);
+  const value = new Date(Date.UTC(year, month - 1, day + 1));
+  return value.toISOString().slice(0, 10);
 }
 
 function getTeamNumber(teamName) {
@@ -80,7 +90,9 @@ function buildUnitTodayLeavesMessage(date, unit, entries, capacity) {
   const formatGroup = (reason) => {
     const people = grouped[reason];
     if (!people?.length) return "";
-    const names = people.map(({ name, detail }) => (detail ? `${name}[${detail}]` : name)).join(", ");
+    const names = people.map(({ name, detail }) =>
+      detail ? `${escapeTelegramHtml(name)}[${escapeTelegramHtml(detail)}]` : escapeTelegramHtml(name)
+    ).join(", ");
     return `${REASON_LABELS[reason] || reason} ${people.length}(${names})`;
   };
 
@@ -95,11 +107,10 @@ function buildUnitTodayLeavesMessage(date, unit, entries, capacity) {
   const leaveCount = Object.values(entries || {}).filter((raw) => !DUTY_REASONS.has(typeof raw === "object" ? raw.label : raw)).length;
   const lines = upperLines.length || lowerLines.length ? [...upperLines, ...(upperLines.length && lowerLines.length ? [""] : []), ...lowerLines] : ["등록된 연가자가 없습니다."];
 
-  return `📋 <b>[${unit}] ${dateDisplay} 연가자 현황</b>\n──────────────────\n${lines.join("\n")}\n──────────────────\n📊 연가 인원: ${leaveCount}/${capacity}명`;
+  return `📋 <b>[${escapeTelegramHtml(unit)}] ${dateDisplay} 연가자 현황</b>\n──────────────────\n${lines.join("\n")}\n──────────────────\n📊 연가 인원: ${leaveCount}/${capacity}명`;
 }
 
-async function buildTodayLeavesMessage() {
-  const date = getSeoulDate();
+async function buildLeavesMessage(date) {
   const [year, month, day] = date.split("-");
   const snapshots = await Promise.all(
     UNITS.map(async (unit) => {
@@ -120,6 +131,14 @@ async function buildTodayLeavesMessage() {
   return sections.join("\n\n");
 }
 
+async function buildTodayLeavesMessage() {
+  return buildLeavesMessage(getSeoulDate());
+}
+
+async function buildTomorrowLeavesMessage() {
+  return buildLeavesMessage(getNextDate(getSeoulDate()));
+}
+
 async function sendTelegramMessage(chatId, text) {
   const response = await fetch(`https://api.telegram.org/bot${telegramBotToken.value().trim()}/sendMessage`, {
     method: "POST",
@@ -129,11 +148,10 @@ async function sendTelegramMessage(chatId, text) {
   if (!response.ok) throw new Error(`Telegram sendMessage failed: ${response.status}`);
 }
 
-async function getVerifiedAdmin(request) {
+async function getVerifiedEmployee(request) {
   const token = request.get("Authorization")?.match(/^Bearer (.+)$/)?.[1];
   if (!token) throw new Error("Missing authorization token");
 
-  const { getAuth } = require("firebase-admin/auth");
   const decodedToken = await getAuth().verifyIdToken(token);
   // The client signs in with the email stored in employees.  Employee document
   // IDs are not guaranteed to be Firebase Auth UIDs, so look up the document
@@ -145,10 +163,16 @@ async function getVerifiedAdmin(request) {
     .limit(1)
     .get();
   const employee = employees.docs[0];
-  if (!employee || employee.data().role !== "admin") {
+  if (!employee) throw new Error("Registered employee not found");
+  return { decodedToken, employee: { id: employee.id, ...employee.data() } };
+}
+
+async function getVerifiedAdmin(request) {
+  const verified = await getVerifiedEmployee(request);
+  if (verified.employee.role !== "admin") {
     throw new Error("Administrator permission required");
   }
-  return decodedToken;
+  return verified;
 }
 
 function getSchedulerNames() {
@@ -211,9 +235,9 @@ exports.updateTelegramSchedule = onRequest(
   async (req, res) => {
     if (req.method !== "POST") return res.status(405).json({ ok: false });
 
-    let decodedToken;
+    let employee;
     try {
-      decodedToken = await getVerifiedAdmin(req);
+      ({ employee } = await getVerifiedAdmin(req));
     } catch (error) {
       return res.status(403).json({ ok: false, code: "admin-required" });
     }
@@ -232,7 +256,7 @@ exports.updateTelegramSchedule = onRequest(
           dailyTime: enabled ? dailyTime : null,
           scheduleMode: "dedicated-cloud-scheduler",
           updatedAt: new Date().toISOString(),
-          updatedBy: decodedToken.email || decodedToken.uid,
+          updatedBy: employee.name,
         },
         { merge: true }
       );
@@ -240,6 +264,172 @@ exports.updateTelegramSchedule = onRequest(
     } catch (error) {
       console.error("Telegram schedule update failed", error);
       return res.status(500).json({ ok: false, code: "schedule-update-failed" });
+    }
+  }
+);
+
+function validateLeaveValue(value) {
+  if (value === null) return null;
+  if (!value || typeof value !== "object" || !ALLOWED_REASONS.has(value.label)) {
+    throw new Error("Invalid leave value");
+  }
+  const reason = typeof value.reason === "string" ? value.reason.trim().slice(0, 200) : "";
+  const team = typeof value.team === "string" ? value.team.trim().slice(0, 40) : "미지정";
+  const hierarchy = Number.isFinite(Number(value.hierarchy)) ? Number(value.hierarchy) : 999;
+  return { label: value.label, reason, team: team || "미지정", hierarchy };
+}
+
+function escapeTelegramHtml(value) {
+  return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+exports.getCurrentUserProfile = onRequest(
+  { region: "asia-northeast3", invoker: "public", cors: true },
+  async (req, res) => {
+    if (req.method !== "POST") return res.status(405).json({ ok: false });
+    try {
+      const { decodedToken, employee } = await getVerifiedEmployee(req);
+      await getAuth().setCustomUserClaims(decodedToken.uid, {
+        role: employee.role,
+        unit: employee.unit || "1제대",
+      });
+      return res.status(200).json({
+        ok: true,
+        profile: {
+          uid: employee.id,
+          email: decodedToken.email,
+          name: employee.name,
+          role: employee.role,
+          unit: employee.unit || "1제대",
+          team: employee.team || "미지정",
+          hierarchy: Number(employee.hierarchy) || 999,
+        },
+      });
+    } catch (error) {
+      console.error("Profile lookup failed", error);
+      return res.status(403).json({ ok: false });
+    }
+  }
+);
+
+exports.saveLeaveChanges = onRequest(
+  {
+    region: "asia-northeast3",
+    invoker: "public",
+    cors: true,
+    maxInstances: 10,
+    secrets: [telegramBotToken, telegramAllowedChatId],
+  },
+  async (req, res) => {
+    if (req.method !== "POST") return res.status(405).json({ ok: false });
+    try {
+      const { employee } = await getVerifiedEmployee(req);
+      const { date, unit, changes } = req.body || {};
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !SAVE_UNITS.includes(unit) || !Array.isArray(changes)) {
+        return res.status(400).json({ ok: false, code: "invalid-request" });
+      }
+      if (changes.length < 1 || changes.length > 100) {
+        return res.status(400).json({ ok: false, code: "invalid-changes" });
+      }
+      if (employee.role !== "admin" && (employee.unit !== unit || changes.some((change) => change.name !== employee.name))) {
+        return res.status(403).json({ ok: false, code: "permission-denied" });
+      }
+
+      const [year, month, day] = date.split("-");
+      const yearMonth = `${year}-${month}`;
+      const leaveRef = db.collection("leaves").doc(`${unit}_${yearMonth}`);
+      const capacityRef = db.collection("settings").doc(`maxCapacity_${unit}`);
+      const notificationRef = db.collection("settings").doc("telegram_notification");
+      const now = getSeoulDateTime();
+      const historyRef = db.collection("leave_history").doc(`${unit}_${now.date}`);
+      const logRef = historyRef.collection("logs").doc();
+
+      const transactionResult = await db.runTransaction(async (transaction) => {
+        const [leaveSnapshot, capacitySnapshot, notificationSnapshot] = await Promise.all([
+          transaction.get(leaveRef),
+          transaction.get(capacityRef),
+          transaction.get(notificationRef),
+        ]);
+        const latestDay = leaveSnapshot.exists ? { ...(leaveSnapshot.data().days?.[day] || {}) } : {};
+        const historyChanges = [];
+
+        for (const change of changes) {
+          if (!change || typeof change.name !== "string" || change.name.length > 80) throw new Error("Invalid employee name");
+          if (!isDeepStrictEqual(latestDay[change.name] ?? null, change.expected ?? null)) {
+            const conflict = new Error("Leave entry changed");
+            conflict.code = "leave/conflict";
+            conflict.employeeName = change.name;
+            throw conflict;
+          }
+
+          let next = validateLeaveValue(change.next ?? null);
+          if (employee.role !== "admin" && next) {
+            next = {
+              ...next,
+              team: employee.team || "미지정",
+              hierarchy: Number(employee.hierarchy) || 999,
+            };
+          }
+          if (next === null) delete latestDay[change.name];
+          else latestDay[change.name] = next;
+          historyChanges.push({
+            type: next === null ? "delete" : "add_or_update",
+            empName: change.name,
+            reason: next === null ? "삭제됨" : REASON_LABELS[next.label] || next.label,
+          });
+        }
+
+        const capacity = capacitySnapshot.exists
+          ? Number(capacitySnapshot.data()?.[date]) || DEFAULT_MAX_CAPACITY
+          : DEFAULT_MAX_CAPACITY;
+        const leaveCount = Object.values(latestDay).filter((value) => !DUTY_REASONS.has(value?.label || value)).length;
+        if (leaveCount > capacity) {
+          const capacityError = new Error("Capacity exceeded");
+          capacityError.code = "leave/capacity-exceeded";
+          capacityError.capacity = capacity;
+          throw capacityError;
+        }
+
+        transaction.set(
+          leaveRef,
+          { unit, month: yearMonth, days: { [day]: latestDay }, updatedAt: new Date().toISOString(), updatedBy: employee.name },
+          { merge: true }
+        );
+        transaction.set(logRef, {
+          timestamp: new Date().toISOString(),
+          by: employee.name,
+          leaveDate: date,
+          changes: historyChanges,
+        });
+        return {
+          savedDay: latestDay,
+          historyChanges,
+          notifyChanges: !notificationSnapshot.exists || notificationSnapshot.data().changeNotificationsEnabled !== false,
+        };
+      });
+
+      if (transactionResult.notifyChanges) {
+        try {
+          const lines = transactionResult.historyChanges.map((change) =>
+            `${escapeTelegramHtml(change.empName)}: ${escapeTelegramHtml(change.reason)} (${change.type === "delete" ? "삭제" : "설정"})`
+          );
+          const message = `🔔 <b>[${escapeTelegramHtml(unit)}] 연가 변동사항</b>\n📅 대상일: ${date}\n👤 작업자: ${escapeTelegramHtml(employee.name)}\n──────────────────\n${lines.join("\n")}`;
+          await sendTelegramMessage(telegramAllowedChatId.value().trim(), message);
+        } catch (notificationError) {
+          console.error("Leave change notification failed", notificationError);
+        }
+      }
+
+      return res.status(200).json({ ok: true, day: transactionResult.savedDay });
+    } catch (error) {
+      console.error("Leave save failed", error);
+      if (error.code === "leave/conflict") {
+        return res.status(409).json({ ok: false, code: error.code, employeeName: error.employeeName });
+      }
+      if (error.code === "leave/capacity-exceeded") {
+        return res.status(409).json({ ok: false, code: error.code, capacity: error.capacity });
+      }
+      return res.status(403).json({ ok: false, code: "save-failed" });
     }
   }
 );
@@ -285,13 +475,22 @@ exports.telegramWebhook = onRequest(
     const chatId = String(message?.chat?.id || "");
     if (!message?.text || chatId !== telegramAllowedChatId.value().trim()) return res.status(200).send("ignored");
 
-    // 그룹에서 `/todayleaves@봇사용자명` 형태로 들어오는 명령도 허용합니다.
+    // 그룹에서 `/todayleaves@봇사용자명` 또는 `/tomorrowleaves@봇사용자명` 형태도 허용합니다.
     if (/^\/todayleaves(?:@\w+)?$/i.test(message.text.trim())) {
       try {
         await sendTelegramMessage(chatId, await buildTodayLeavesMessage());
       } catch (error) {
         console.error("/todayleaves command failed", error);
         await sendTelegramMessage(chatId, "당일 연가자 현황을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+      }
+    }
+
+    if (/^\/tomorrowleaves(?:@\w+)?$/i.test(message.text.trim())) {
+      try {
+        await sendTelegramMessage(chatId, await buildTomorrowLeavesMessage());
+      } catch (error) {
+        console.error("/tomorrowleaves command failed", error);
+        await sendTelegramMessage(chatId, "내일 연가자 현황을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
       }
     }
 
@@ -321,7 +520,9 @@ async function sendConfiguredDailyLeaves({ requireExactTime = false } = {}) {
   if (!shouldSend) return { sent: false, reason: "already-sent" };
 
   try {
-    await sendTelegramMessage(telegramAllowedChatId.value().trim(), await buildTodayLeavesMessage());
+    const chatId = telegramAllowedChatId.value().trim();
+    await sendTelegramMessage(chatId, await buildTodayLeavesMessage());
+    await sendTelegramMessage(chatId, await buildTomorrowLeavesMessage());
     return { sent: true };
   } catch (error) {
     console.error("Scheduled daily Telegram notification failed", error);
@@ -330,7 +531,8 @@ async function sendConfiguredDailyLeaves({ requireExactTime = false } = {}) {
   }
 }
 
-// 전환 중 안전장치: 기존 Firebase 관리 작업은 자정에 한 번만 실행하며 매분 확인하지 않습니다.
+// Migration fallback: this Firebase-managed job runs only once at midnight and never polls every minute.
+// The dedicated app-managed scheduler job below performs the actual configured-time delivery.
 exports.sendScheduledDailyLeaves = onSchedule(
   {
     schedule: "0 0 * * *",

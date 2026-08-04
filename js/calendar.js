@@ -194,12 +194,20 @@ function renderCalendar() {
 
 function previousMonth() {
   currentDate.setMonth(currentDate.getMonth() - 1);
-  renderCalendar();
+  if (currentUser && typeof setupLeavesRealtimeSync === "function") {
+    setupLeavesRealtimeSync();
+  } else {
+    renderCalendar();
+  }
 }
 
 function nextMonth() {
   currentDate.setMonth(currentDate.getMonth() + 1);
-  renderCalendar();
+  if (currentUser && typeof setupLeavesRealtimeSync === "function") {
+    setupLeavesRealtimeSync();
+  } else {
+    renderCalendar();
+  }
 }
 
 function selectDate(dateStr) {

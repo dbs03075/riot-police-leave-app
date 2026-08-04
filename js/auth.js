@@ -77,9 +77,11 @@ async function login() {
             // 데이터 로드
             await loadEmployeesFromDB(); // db에서 이름 들고오기
             renderCalendar(); // 캘린더 현출
-            await loadLeavesFromFirebase(); // config에 있는 전역변수에 저장
             await loadSettingsFromFirebase(); // config에 있는 전역변수에 저장
             setupRealtimeSync();
+            if (typeof loadTelegramSettings === 'function') {
+                await loadTelegramSettings({ syncSchedule: true });
+            }
 
             // 로그인 실패 메시지 초기화
             document.getElementById('loginError').style.display = 'none';
@@ -170,9 +172,11 @@ auth.onAuthStateChanged(async (user) => {
 
                 await loadEmployeesFromDB();
                 renderCalendar();
-                await loadLeavesFromFirebase();
                 await loadSettingsFromFirebase();
                 setupRealtimeSync();
+                if (typeof loadTelegramSettings === 'function') {
+                    await loadTelegramSettings({ syncSchedule: true });
+                }
 
                 console.log('✓ 세션 유지:', currentUser.name);
             }
