@@ -63,10 +63,14 @@
 }
 
 .team-quota-memo {
+    display: inline;
     font-size: 10px;
+    line-height: 1.25;
     color: #E74C3C;
     font-weight: bold;
     margin-left: 5px;
+    overflow-wrap: anywhere;
+    word-break: keep-all;
 }
 
 .month-year {
@@ -167,12 +171,16 @@
 }
 
 .day-number {
+    min-width: 0;
+    flex: 1;
     font-weight: var(--font-weight-semibold);
     font-size: var(--font-size-sm);
     color: inherit;
+    line-height: 1.25;
 }
 
 .day-count {
+    flex: 0 0 auto;
     font-size: var(--font-size-xs);
     background: rgba(var(--color-primary-rgb), 0.1);
     padding: var(--space-2) var(--space-4);

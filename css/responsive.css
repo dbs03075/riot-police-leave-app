@@ -56,6 +56,11 @@
         font-weight: 700;
     }
 
+    .team-quota-memo {
+        font-size: 9px;
+        margin-left: 3px;
+    }
+
     .day-leaves {
         gap: var(--space-1);
     }
@@ -180,12 +185,23 @@
     }
 
     .day-content {
+        align-items: flex-start;
+        gap: var(--space-1);
         font-size: var(--font-size-xs);
         margin-bottom: var(--space-1);
     }
 
     .day-number {
         font-size: var(--font-size-xs);
+    }
+
+    .team-quota-memo {
+        display: block;
+        margin-top: 1px;
+        margin-left: 0;
+        font-size: 7px;
+        line-height: 1.2;
+        font-weight: 700;
     }
 
     .day-count {
