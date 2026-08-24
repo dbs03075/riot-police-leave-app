@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="css/login.css">
     <link rel="stylesheet" href="css/calendar.css">
     <link rel="stylesheet" href="css/modal.css">
-    <link rel="stylesheet" href="css/settings.css">
+    <link rel="stylesheet" href="css/settings.css?v=20260823-member-management">
     <link rel="stylesheet" href="css/responsive.css">
     <link rel="stylesheet" href="css/scrollbar.css">
     <link rel="stylesheet" href="css/detail-modal.css">
@@ -28,19 +28,91 @@
             <h1>연가 관리</h1>
             <p>팀원들의 연가 일정을 효율적으로 관리하세요</p>
 
-            <div id="loginError"></div>
-
-            <div class="form-group">
-                <label>이름</label>
-                <input type="text" id="nameInput" placeholder="이름을 입력하세요">
+            <div class="auth-mode-tabs" role="tablist" aria-label="계정 메뉴">
+                <button type="button" class="auth-mode-btn active" data-auth-mode="login" onclick="showAuthMode('login')">로그인</button>
+                <button type="button" class="auth-mode-btn" data-auth-mode="signup" onclick="showAuthMode('signup')">회원가입</button>
+                <button type="button" class="auth-mode-btn" data-auth-mode="activate" onclick="showAuthMode('activate')">기존 계정</button>
             </div>
 
-            <div class="form-group">
-                <label>비밀번호</label>
-                <input type="password" id="passwordInput" placeholder="••••••••">
-            </div>
+            <div id="loginError" class="auth-message" role="alert"></div>
+            <div id="authSuccess" class="auth-message auth-success" role="status"></div>
 
-            <button class="login-btn" onclick="login()">로그인</button>
+            <form id="loginForm" class="auth-panel active" onsubmit="event.preventDefault(); login();">
+                <div class="form-group">
+                    <label for="usernameInput">아이디</label>
+                    <input type="text" id="usernameInput" autocomplete="username" placeholder="아이디를 입력하세요" required>
+                </div>
+                <div class="form-group">
+                    <label for="passwordInput">비밀번호</label>
+                    <input type="password" id="passwordInput" autocomplete="current-password" placeholder="••••••••" required>
+                </div>
+                <button class="login-btn" type="submit">로그인</button>
+            </form>
+
+            <form id="signupForm" class="auth-panel" onsubmit="event.preventDefault(); signup();">
+                <div class="auth-form-grid">
+                    <div class="form-group">
+                        <label for="signupUsername">아이디</label>
+                        <input type="text" id="signupUsername" autocomplete="username" placeholder="4~24자 영문 소문자/숫자" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="signupName">이름</label>
+                        <input type="text" id="signupName" autocomplete="name" required>
+                    </div>
+                    <div class="form-group auth-grid-wide">
+                        <label for="signupEmail">이메일</label>
+                        <input type="email" id="signupEmail" autocomplete="email" required>
+                    </div>
+                    <div class="form-group auth-grid-wide">
+                        <label for="signupPassword">비밀번호</label>
+                        <input type="password" id="signupPassword" autocomplete="new-password" minlength="8" placeholder="8자 이상" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="signupRole">역할</label>
+                        <select id="signupRole" onchange="updateSignupRoleFields()">
+                            <option value="employee">일반 제대원</option>
+                            <option value="admin">관리자</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="signupUnit">제대</label>
+                        <select id="signupUnit" required>
+                            <option value="1제대">1제대</option>
+                            <option value="2제대">2제대</option>
+                            <option value="3제대">3제대</option>
+                        </select>
+                    </div>
+                    <div id="employeeSignupFields" class="auth-grid-fields">
+                        <div class="form-group">
+                            <label for="signupTeam">팀</label>
+                            <input type="text" id="signupTeam" placeholder="예: 7팀" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="signupHierarchy">팀 내 연번</label>
+                            <input type="number" id="signupHierarchy" min="1" max="999" step="1" required>
+                        </div>
+                    </div>
+                </div>
+                <p class="auth-help">관리자 계정은 보안을 위해 기존 관리자가 제대원 관리 화면에서만 추가할 수 있습니다.</p>
+                <button class="login-btn" type="submit">회원가입</button>
+            </form>
+
+            <form id="activateForm" class="auth-panel" onsubmit="event.preventDefault(); activateExistingAccount();">
+                <p class="auth-help">기존 Firebase 계정을 삭제하지 않고 새 아이디와 연결합니다. 최초 1회만 기존 이메일이 필요합니다.</p>
+                <div class="form-group">
+                    <label for="activateEmail">기존 Authentication 이메일</label>
+                    <input type="email" id="activateEmail" autocomplete="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="activatePassword">기존 비밀번호</label>
+                    <input type="password" id="activatePassword" autocomplete="current-password" required>
+                </div>
+                <div class="form-group">
+                    <label for="activateUsername">새 아이디</label>
+                    <input type="text" id="activateUsername" autocomplete="username" placeholder="4~24자 영문 소문자/숫자" required>
+                </div>
+                <button class="login-btn" type="submit">아이디 연결</button>
+            </form>
         </div>
     </div>
 
@@ -108,18 +180,8 @@
             <!-- 설정 탭 -->
             <div id="settingsTab" class="tab-content">
                 <div class="settings-page">
-                    <div style="margin-bottom: 20px;">
-                        <h3 style="color: #0066CC; margin-bottom: 15px; font-size: 18px;">일자별 최대 인원 설정</h3>
-                        <div class="settings-grid" id="settingsGrid">
-                            <div class="add-date-setting" onclick="addDateSetting()">
-                                <div style="font-size: 28px; margin-bottom: 8px;">+</div>
-                                <div style="font-weight: 600;">일자 추가</div>
-                            </div>
-                        </div>
-                    </div>
-
                     <!-- 텔레그램 알림 -->
-                    <div style="margin-top: 30px; padding: 20px; background: #fff; border-radius: 12px; border: 1px solid #e0e8f0;">
+                    <section class="settings-section telegram-settings-section">
                         <h3 style="color: #0066CC; font-size: 18px; margin: 0 0 10px;">📲 텔레그램 알림</h3>
                         <p style="color: #6B7C8F; font-size: 13px; margin-bottom: 16px; line-height: 1.6;">
                             필요한 알림만 받도록 변경 알림과 당일 현황 정기 전송을 각각 설정할 수 있습니다.
@@ -149,7 +211,20 @@
                         <p style="margin-top: 12px; font-size: 12px; color: #95A0A8;">
                             ℹ️ 봇 토큰과 채팅 ID는 Firebase Secret Manager에 안전하게 저장되어 있습니다.
                         </p>
-                    </div>
+                    </section>
+
+                    <!-- 제대원 관리 -->
+                    <section class="settings-section employee-management-section">
+                        <div class="employee-management-heading">
+                            <div>
+                                <h3>👥 제대원 관리</h3>
+                                <p>제대·팀·팀 내 연번 순으로 직제표를 표시합니다. 수정 사항은 각 제대원별로 저장하세요.</p>
+                            </div>
+                            <button type="button" class="employee-refresh-btn" onclick="loadEmployeeManagement()">새로고침</button>
+                        </div>
+                        <div id="employeeManagementStatus" class="employee-management-status">제대원 정보를 불러오는 중입니다...</div>
+                        <div id="employeeManagementList" class="employee-management-list"></div>
+                    </section>
                 </div>
             </div>
 
@@ -249,13 +324,13 @@
     </div>
 
     <!-- 앱 스크립트 (순서대로 로드) -->
-    <script src="js/config.js?v=20260802-dedicated-scheduler"></script>
-    <script src="js/auth.js?v=20260804-telegram-notify-fix"></script>
+    <script src="js/config.js?v=20260823-member-management"></script>
+    <script src="js/auth.js?v=20260823-username-auth"></script>
     <script src="js/calendar.js?v=20260804-monthly-leaves"></script>
     <script src="js/leave-management.js?v=20260802-company"></script>
     <script src="js/modal.js?v=20260802-company"></script>
-    <script src="js/settings.js?v=20260802-company"></script>
-    <script src="js/firebase-sync.js?v=20260804-telegram-notify-fix"></script>
+    <script src="js/settings.js?v=20260823-member-management"></script>
+    <script src="js/firebase-sync.js?v=20260823-secure-save"></script>
     <script src="js/history.js?v=20260802-local-fix"></script>
     <script src="js/app.js?v=20260802-company"></script>
 </body>

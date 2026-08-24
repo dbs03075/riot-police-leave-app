@@ -141,6 +141,7 @@ function switchTab(tab) {
         document.querySelectorAll('.tab-btn')[1].classList.add('active');
         // 설정 탭 진입 시 텔레그램 설정값 UI 반영
         if (typeof loadTelegramSettings === 'function') loadTelegramSettings();
+        if (typeof loadEmployeeManagement === 'function') loadEmployeeManagement();
     }
     else if (tab === 'history') {
         document.getElementById('historyTab').classList.add('active');

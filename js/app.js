@@ -7,13 +7,6 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('📍 현재 상태: Firebase 설정 대기 중...');
 });
 
-// Enter 키로 로그인
-document.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter' && document.getElementById('loginScreen').style.display !== 'none') {
-        login();
-    }
-});
-
 // 상단 헤더 제대 변경 
 function changeUnit(unit) {
     selectedUnit = unit;

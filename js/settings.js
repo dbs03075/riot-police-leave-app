@@ -1,114 +1,201 @@
 // ========================================
-// 설정 페이지 함수 (Firebase 연동)
+// 관리자 제대원 관리
 // ========================================
 
-function updateSettingsGrid() {
-    let html = '';
-    
-    const sortedDates = Object.keys(maxCapacity).sort();
-    
-    sortedDates.forEach(dateStr => {
-        html += `
-            <div class="date-setting-card">
-                <div class="date-setting-card-header">${formatDateForCard(dateStr)}</div>
-                <div class="date-setting-card-content">
-                    <div class="date-input-group">
-                        <input type="number" id="capacity-${dateStr}" value="${maxCapacity[dateStr]}" min="1">
-                        <button onclick="updateDateCapacity('${dateStr}')">변경</button>
-                    </div>
-                    <button class="date-setting-remove" onclick="removeDateSetting('${dateStr}')">삭제</button>
-                </div>
-            </div>
-        `;
+let managedEmployees = [];
+let employeeManagementLoading = false;
+
+function getUnitOrder(unit) {
+    const index = units.indexOf(unit);
+    return index === -1 ? 999 : index;
+}
+
+function compareTeamNames(left, right) {
+    return String(left || '미지정').localeCompare(String(right || '미지정'), 'ko', {
+        numeric: true,
+        sensitivity: 'base',
+    });
+}
+
+function setEmployeeManagementStatus(message, type = '') {
+    const status = document.getElementById('employeeManagementStatus');
+    if (!status) return;
+    status.textContent = message;
+    status.className = `employee-management-status${type ? ` ${type}` : ''}`;
+}
+
+async function callEmployeeAdminApi(url, body) {
+    if (!auth.currentUser || !currentUser || currentUser.role !== 'admin') {
+        throw new Error('관리자 로그인이 필요합니다.');
+    }
+    const token = await auth.currentUser.getIdToken();
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.ok) {
+        const error = new Error(result.message || '요청을 처리하지 못했습니다.');
+        error.code = result.code || `http/${response.status}`;
+        throw error;
+    }
+    return result;
+}
+
+async function loadEmployeeManagement() {
+    const list = document.getElementById('employeeManagementList');
+    if (!list || employeeManagementLoading || !currentUser || currentUser.role !== 'admin') return;
+
+    employeeManagementLoading = true;
+    list.innerHTML = '';
+    setEmployeeManagementStatus('제대원 정보를 불러오는 중입니다...');
+    try {
+        const snapshot = await db.collection('employees').where('role', '==', 'employee').get();
+        managedEmployees = snapshot.docs.map((doc) => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                authUid: data.authUid || '',
+                username: data.username || '',
+                email: data.email || '',
+                name: data.name || '이름 없음',
+                unit: data.unit || '미지정',
+                team: data.team || '미지정',
+                hierarchy: Number(data.hierarchy) || 999,
+            };
+        }).sort((a, b) =>
+            getUnitOrder(a.unit) - getUnitOrder(b.unit) ||
+            compareTeamNames(a.team, b.team) ||
+            a.hierarchy - b.hierarchy ||
+            a.name.localeCompare(b.name, 'ko')
+        );
+
+        renderEmployeeManagement();
+        setEmployeeManagementStatus(`총 ${managedEmployees.length}명의 제대원이 등록되어 있습니다.`, 'success');
+    } catch (error) {
+        console.error('제대원 관리 목록 로드 실패:', error);
+        setEmployeeManagementStatus('제대원 목록을 불러오지 못했습니다.', 'error');
+    } finally {
+        employeeManagementLoading = false;
+    }
+}
+
+function renderEmployeeManagement() {
+    const container = document.getElementById('employeeManagementList');
+    if (!container) return;
+    if (!managedEmployees.length) {
+        container.innerHTML = '<div class="employee-management-empty">등록된 제대원이 없습니다.</div>';
+        return;
+    }
+
+    const grouped = new Map();
+    managedEmployees.forEach((employee) => {
+        if (!grouped.has(employee.unit)) grouped.set(employee.unit, new Map());
+        const teams = grouped.get(employee.unit);
+        if (!teams.has(employee.team)) teams.set(employee.team, []);
+        teams.get(employee.team).push(employee);
     });
 
-    html += `
-        <div class="add-date-setting" onclick="addDateSetting()">
-            <div style="font-size: 28px; margin-bottom: 8px;">+</div>
-            <div>일자 추가</div>
-        </div>
-    `;
+    let html = '';
+    for (const [unit, teams] of grouped) {
+        const unitCount = Array.from(teams.values()).reduce((sum, members) => sum + members.length, 0);
+        html += `<section class="organization-unit">
+            <div class="organization-unit-header">
+                <h4>${escapeHtml(unit)}</h4>
+                <span>${unitCount}명</span>
+            </div>`;
 
-    document.getElementById('settingsGrid').innerHTML = html;
-}
-function formatDateForCard(dateStr) {
-    const date = new Date(dateStr + 'T00:00:00');
-    return date.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
-}
+        for (const [team, members] of teams) {
+            html += `<div class="organization-team">
+                <div class="organization-team-header">
+                    <strong>${escapeHtml(team)}</strong>
+                    <span>${members.length}명</span>
+                </div>
+                <div class="organization-member-list">`;
 
-// 📌 새 날짜 설정 추가 (Firebase 저장)
-async function addDateSetting() {
-    const dateStr = prompt('날짜를 입력하세요 (YYYY-MM-DD 형식):');
-    if (!dateStr) return;
+            members.forEach((employee, index) => {
+                const unitOptions = units.map((value) =>
+                    `<option value="${escapeHtml(value)}"${value === employee.unit ? ' selected' : ''}>${escapeHtml(value)}</option>`
+                ).join('');
+                html += `<article class="organization-member" data-employee-id="${escapeHtml(employee.id)}">
+                    <div class="organization-rank">${index + 1}</div>
+                    <div class="organization-identity">
+                        <strong>${escapeHtml(employee.name)}</strong>
+                        <span>${escapeHtml(employee.username || '아이디 미연결')}</span>
+                        <small>${escapeHtml(employee.email || '이메일 없음')}</small>
+                    </div>
+                    <label class="organization-field">
+                        <span>제대</span>
+                        <select data-field="unit">${unitOptions}</select>
+                    </label>
+                    <label class="organization-field">
+                        <span>팀</span>
+                        <input data-field="team" type="text" maxlength="40" value="${escapeHtml(employee.team)}">
+                    </label>
+                    <label class="organization-field organization-field-small">
+                        <span>연번</span>
+                        <input data-field="hierarchy" type="number" min="1" max="999" step="1" value="${employee.hierarchy}">
+                    </label>
+                    <div class="organization-actions">
+                        <button type="button" class="organization-save" onclick="saveManagedEmployee(this)">수정</button>
+                        <button type="button" class="organization-delete" onclick="deleteManagedEmployee(this)">삭제</button>
+                    </div>
+                </article>`;
+            });
 
-    const regex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!regex.test(dateStr)) {
-        alert('올바른 날짜 형식이 아닙니다. (YYYY-MM-DD)');
-        return;
-    }
-
-    if (maxCapacity[dateStr]) {
-        alert('이미 설정된 날짜입니다.');
-        return;
-    }
-
-    // 날짜 유효성 검사
-    const date = new Date(dateStr + 'T00:00:00');
-    if (isNaN(date.getTime())) {
-        alert('유효하지 않은 날짜입니다.');
-        return;
-    }
-
-    maxCapacity[dateStr] = defaultMaxCapacity;
-    
-    try {
-        await saveSettingToFirebase(dateStr, defaultMaxCapacity);
-        updateSettingsGrid();
-        renderCalendar();
-        alert('새 날짜가 추가되었습니다');
-    } catch (error) {
-        console.error('설정 추가 실패:', error);
-        alert('설정 추가 중 오류가 발생했습니다');
-        delete maxCapacity[dateStr];
-    }
-}
-
-// 📌 날짜별 최대 인원 변경 (Firebase 저장)
-async function updateDateCapacity(dateStr) {
-    const value = parseInt(document.getElementById(`capacity-${dateStr}`).value);
-    
-    if (isNaN(value) || value < 1) {
-        alert('최소 1명 이상이어야 합니다');
-        return;
-    }
-
-    const leaveCount = Object.keys(leaves[dateStr] || {}).length;
-    if (leaveCount > value) {
-        alert(`현재 등록된 연가자(${leaveCount}명)가 변경하려는 인원(${value}명)보다 많습니다`);
-        return;
-    }
-
-    try {
-        await saveSettingToFirebase(dateStr, value);
-        renderCalendar();
-        alert('변경되었습니다');
-    } catch (error) {
-        console.error('설정 변경 실패:', error);
-        alert('설정 변경 중 오류가 발생했습니다');
-    }
-}
-
-// 📌 날짜 설정 삭제 (Firebase 삭제)
-async function removeDateSetting(dateStr) {
-    if (confirm('이 날짜 설정을 삭제하시겠습니까?')) {
-        try {
-            await deleteSettingFromFirebase(dateStr);
-            updateSettingsGrid();
-            renderCalendar();
-            alert('삭제되었습니다');
-        } catch (error) {
-            console.error('설정 삭제 실패:', error);
-            alert('설정 삭제 중 오류가 발생했습니다');
+            html += '</div></div>';
         }
+        html += '</section>';
+    }
+    container.innerHTML = html;
+}
+
+async function saveManagedEmployee(button) {
+    const row = button.closest('.organization-member');
+    const employeeId = row?.dataset.employeeId;
+    const unit = row?.querySelector('[data-field="unit"]')?.value;
+    const team = row?.querySelector('[data-field="team"]')?.value.trim();
+    const hierarchy = Number(row?.querySelector('[data-field="hierarchy"]')?.value);
+    if (!employeeId || !units.includes(unit) || !team || !Number.isInteger(hierarchy) || hierarchy < 1 || hierarchy > 999) {
+        alert('제대, 팀, 연번(1~999)을 확인해주세요.');
+        return;
+    }
+
+    button.disabled = true;
+    const originalText = button.textContent;
+    button.textContent = '저장 중...';
+    try {
+        await callEmployeeAdminApi(AUTH_API_URLS.updateEmployee, { employeeId, unit, team, hierarchy });
+        await loadEmployeeManagement();
+        setEmployeeManagementStatus('제대원 정보가 수정되었습니다.', 'success');
+    } catch (error) {
+        console.error('제대원 수정 실패:', error);
+        alert(error.message || '제대원 정보를 수정하지 못했습니다.');
+        button.disabled = false;
+        button.textContent = originalText;
+    }
+}
+
+async function deleteManagedEmployee(button) {
+    const row = button.closest('.organization-member');
+    const employeeId = row?.dataset.employeeId;
+    const employee = managedEmployees.find((item) => item.id === employeeId);
+    if (!employee || !confirm(`${employee.name} 제대원을 삭제하시겠습니까?\n\nAuthentication 계정과 employees 정보가 함께 삭제됩니다.`)) return;
+
+    button.disabled = true;
+    button.textContent = '삭제 중...';
+    try {
+        await callEmployeeAdminApi(AUTH_API_URLS.deleteEmployee, { employeeId });
+        await loadEmployeeManagement();
+        setEmployeeManagementStatus(`${employee.name} 제대원을 삭제했습니다.`, 'success');
+    } catch (error) {
+        console.error('제대원 삭제 실패:', error);
+        alert(error.message || '제대원을 삭제하지 못했습니다.');
+        button.disabled = false;
+        button.textContent = '삭제';
     }
 }

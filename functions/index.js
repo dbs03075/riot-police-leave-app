@@ -2,9 +2,10 @@ const { onRequest } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { defineSecret } = require("firebase-functions/params");
 const { initializeApp } = require("firebase-admin/app");
-const { getFirestore } = require("firebase-admin/firestore");
+const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getAuth } = require("firebase-admin/auth");
 const { isDeepStrictEqual } = require("node:util");
+const { createHash } = require("node:crypto");
 
 initializeApp();
 
@@ -39,6 +40,21 @@ const REASON_LABELS = {
 const UPPER_REASON_ORDER = ["annual", "special", "education", "out_of_area_travel", "sick", "compensatory_rest", "leave_early_late"];
 const LOWER_REASON_ORDER = ["personal_duty", "personal_rest", "multi_duty", "multi_rest", "etc"];
 const ALLOWED_REASONS = new Set([...UPPER_REASON_ORDER, ...LOWER_REASON_ORDER]);
+const USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{3,23}$/;
+
+function normalizeUsername(value) {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+function usernameToAuthEmail(username) {
+  const projectId = process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT;
+  if (!projectId) throw new Error("Google Cloud project ID is unavailable");
+  return `${username}@users.${projectId}.firebaseapp.com`;
+}
+
+function emailReservationId(email) {
+  return createHash("sha256").update(email).digest("hex");
+}
 
 function getSeoulDateTime() {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -153,17 +169,16 @@ async function getVerifiedEmployee(request) {
   if (!token) throw new Error("Missing authorization token");
 
   const decodedToken = await getAuth().verifyIdToken(token);
-  // The client signs in with the email stored in employees.  Employee document
-  // IDs are not guaranteed to be Firebase Auth UIDs, so look up the document
-  // by the verified token's email rather than assuming its document ID.
-  if (!decodedToken.email) throw new Error("Authenticated user has no email");
-  const employees = await db
-    .collection("employees")
-    .where("email", "==", decodedToken.email)
-    .limit(1)
-    .get();
-  const employee = employees.docs[0];
-  if (!employee) throw new Error("Registered employee not found");
+  let employee = await db.collection("employees").doc(decodedToken.uid).get();
+  if (!employee.exists) {
+    const byAuthUid = await db.collection("employees").where("authUid", "==", decodedToken.uid).limit(1).get();
+    employee = byAuthUid.docs[0];
+  }
+  if ((!employee || !employee.exists) && decodedToken.email) {
+    const legacy = await db.collection("employees").where("email", "==", decodedToken.email).limit(1).get();
+    employee = legacy.docs[0];
+  }
+  if (!employee || !employee.exists) throw new Error("Registered employee not found");
   return { decodedToken, employee: { id: employee.id, ...employee.data() } };
 }
 
@@ -174,6 +189,261 @@ async function getVerifiedAdmin(request) {
   }
   return verified;
 }
+
+function registrationError(res, status, code, message) {
+  return res.status(status).json({ ok: false, code, message });
+}
+
+exports.registerEmployee = onRequest(
+  { region: FUNCTIONS_REGION, invoker: "public", cors: true, maxInstances: 10 },
+  async (req, res) => {
+    if (req.method !== "POST") return registrationError(res, 405, "method-not-allowed", "POST 요청만 허용됩니다.");
+
+    const value = req.body || {};
+    const username = normalizeUsername(value.username);
+    const name = typeof value.name === "string" ? value.name.trim() : "";
+    const email = typeof value.email === "string" ? value.email.trim().toLowerCase() : "";
+    const password = typeof value.password === "string" ? value.password : "";
+    const role = value.role === "admin" ? "admin" : "employee";
+    const unit = typeof value.unit === "string" ? value.unit.trim() : "";
+    const team = role === "employee" && typeof value.team === "string" ? value.team.trim() : "미지정";
+    const hierarchy = role === "employee" ? Number(value.hierarchy) : 999;
+
+    if (!USERNAME_PATTERN.test(username)) return registrationError(res, 400, "invalid-username", "아이디 형식을 확인해주세요.");
+    if (!name || name.length > 80) return registrationError(res, 400, "invalid-name", "이름을 확인해주세요.");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) return registrationError(res, 400, "invalid-email", "이메일을 확인해주세요.");
+    if (password.length < 8 || password.length > 128) return registrationError(res, 400, "invalid-password", "비밀번호는 8~128자여야 합니다.");
+    if (!UNITS.includes(unit)) return registrationError(res, 400, "invalid-unit", "제대를 확인해주세요.");
+    if (role === "employee" && (!team || team.length > 40 || !Number.isInteger(hierarchy) || hierarchy < 1 || hierarchy > 999)) {
+      return registrationError(res, 400, "invalid-team-data", "팀과 팀 내 연번을 확인해주세요.");
+    }
+
+    if (role === "admin") {
+      try {
+        await getVerifiedAdmin(req);
+      } catch (error) {
+        return registrationError(res, 403, "admin-auth-required", "관리자 계정은 기존 관리자만 추가할 수 있습니다.");
+      }
+    }
+
+    const loginEmail = usernameToAuthEmail(username);
+    let authUser = null;
+    try {
+      const duplicateEmail = await db.collection("employees").where("email", "==", email).limit(1).get();
+      if (!duplicateEmail.empty) return registrationError(res, 409, "email-already-exists", "이미 등록된 이메일입니다.");
+
+      authUser = await getAuth().createUser({ email: loginEmail, password, displayName: name, disabled: false });
+      await getAuth().setCustomUserClaims(authUser.uid, { role, unit });
+      const employeeRef = db.collection("employees").doc(authUser.uid);
+      const usernameRef = db.collection("usernames").doc(username);
+      const emailRef = db.collection("employeeEmails").doc(emailReservationId(email));
+
+      await db.runTransaction(async (transaction) => {
+        const [usernameSnapshot, emailSnapshot] = await Promise.all([
+          transaction.get(usernameRef),
+          transaction.get(emailRef),
+        ]);
+        if (usernameSnapshot.exists) {
+          const error = new Error("Username already exists");
+          error.code = "username-already-exists";
+          throw error;
+        }
+        if (emailSnapshot.exists) {
+          const error = new Error("Email already exists");
+          error.code = "email-already-exists";
+          throw error;
+        }
+
+        transaction.create(usernameRef, { uid: authUser.uid, createdAt: FieldValue.serverTimestamp() });
+        transaction.create(emailRef, { uid: authUser.uid, createdAt: FieldValue.serverTimestamp() });
+        transaction.create(employeeRef, {
+          authUid: authUser.uid,
+          username,
+          loginEmail,
+          email,
+          name,
+          role,
+          unit,
+          team,
+          hierarchy,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+      });
+
+      return res.status(201).json({ ok: true, uid: authUser.uid });
+    } catch (error) {
+      if (authUser) await getAuth().deleteUser(authUser.uid).catch(() => {});
+      if (error.code === "auth/email-already-exists" || error.code === "username-already-exists") {
+        return registrationError(res, 409, "username-already-exists", "이미 사용 중인 아이디입니다.");
+      }
+      if (error.code === "email-already-exists") return registrationError(res, 409, error.code, "이미 등록된 이메일입니다.");
+      console.error("Employee registration failed", error);
+      return registrationError(res, 500, "registration-failed", "계정을 생성하지 못했습니다.");
+    }
+  }
+);
+
+exports.activateUsername = onRequest(
+  { region: FUNCTIONS_REGION, invoker: "public", cors: true },
+  async (req, res) => {
+    if (req.method !== "POST") return registrationError(res, 405, "method-not-allowed", "POST 요청만 허용됩니다.");
+    const username = normalizeUsername(req.body?.username);
+    if (!USERNAME_PATTERN.test(username)) return registrationError(res, 400, "invalid-username", "아이디 형식을 확인해주세요.");
+
+    let verified;
+    try {
+      verified = await getVerifiedEmployee(req);
+    } catch (error) {
+      return registrationError(res, 403, "employee-not-found", "등록된 제대원 계정을 찾지 못했습니다.");
+    }
+    if (verified.employee.username) return registrationError(res, 409, "username-already-linked", "이미 아이디가 연결된 계정입니다.");
+
+    const loginEmail = usernameToAuthEmail(username);
+    const usernameRef = db.collection("usernames").doc(username);
+    const employeeRef = db.collection("employees").doc(verified.employee.id);
+    const previousAuthEmail = verified.decodedToken.email;
+    try {
+      const existingUsername = await usernameRef.get();
+      if (existingUsername.exists) return registrationError(res, 409, "username-already-exists", "이미 사용 중인 아이디입니다.");
+
+      await getAuth().setCustomUserClaims(verified.decodedToken.uid, {
+        role: verified.employee.role,
+        unit: verified.employee.unit || "1제대",
+      });
+      await getAuth().updateUser(verified.decodedToken.uid, { email: loginEmail });
+      await db.runTransaction(async (transaction) => {
+        const latestUsername = await transaction.get(usernameRef);
+        if (latestUsername.exists) {
+          const error = new Error("Username already exists");
+          error.code = "username-already-exists";
+          throw error;
+        }
+        transaction.create(usernameRef, { uid: verified.decodedToken.uid, createdAt: FieldValue.serverTimestamp() });
+        transaction.set(employeeRef, {
+          authUid: verified.decodedToken.uid,
+          username,
+          loginEmail,
+          usernameActivatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      });
+      return res.status(200).json({ ok: true });
+    } catch (error) {
+      if (previousAuthEmail) await getAuth().updateUser(verified.decodedToken.uid, { email: previousAuthEmail }).catch(() => {});
+      if (error.code === "auth/email-already-exists" || error.code === "username-already-exists") {
+        return registrationError(res, 409, "username-already-exists", "이미 사용 중인 아이디입니다.");
+      }
+      console.error("Username activation failed", error);
+      return registrationError(res, 500, "activation-failed", "아이디를 연결하지 못했습니다.");
+    }
+  }
+);
+
+function getEmployeeDocumentId(value) {
+  const employeeId = typeof value === "string" ? value.trim() : "";
+  if (!employeeId || employeeId.length > 1500 || employeeId.includes("/")) return "";
+  return employeeId;
+}
+
+exports.updateEmployeeProfile = onRequest(
+  { region: FUNCTIONS_REGION, invoker: "public", cors: true },
+  async (req, res) => {
+    if (req.method !== "POST") return registrationError(res, 405, "method-not-allowed", "POST 요청만 허용됩니다.");
+
+    let admin;
+    try {
+      admin = await getVerifiedAdmin(req);
+    } catch (error) {
+      return registrationError(res, 403, "admin-auth-required", "관리자 권한이 필요합니다.");
+    }
+
+    const employeeId = getEmployeeDocumentId(req.body?.employeeId);
+    const unit = typeof req.body?.unit === "string" ? req.body.unit.trim() : "";
+    const team = typeof req.body?.team === "string" ? req.body.team.trim() : "";
+    const hierarchy = Number(req.body?.hierarchy);
+    if (!employeeId || !SAVE_UNITS.includes(unit) || !team || team.length > 40 || !Number.isInteger(hierarchy) || hierarchy < 1 || hierarchy > 999) {
+      return registrationError(res, 400, "invalid-employee-data", "제대, 팀, 연번을 확인해주세요.");
+    }
+
+    const employeeRef = db.collection("employees").doc(employeeId);
+    try {
+      const employeeSnapshot = await employeeRef.get();
+      if (!employeeSnapshot.exists) return registrationError(res, 404, "employee-not-found", "제대원을 찾지 못했습니다.");
+      const employee = employeeSnapshot.data();
+      if (employee.role !== "employee") return registrationError(res, 403, "admin-profile-protected", "관리자 계정은 이 화면에서 수정할 수 없습니다.");
+
+      await employeeRef.set({
+        unit,
+        team,
+        hierarchy,
+        updatedAt: FieldValue.serverTimestamp(),
+        updatedBy: admin.employee.name,
+      }, { merge: true });
+
+      if (employee.authUid) {
+        await getAuth().setCustomUserClaims(employee.authUid, { role: "employee", unit }).catch((error) => {
+          console.warn("Employee claims update deferred until next login", employee.authUid, error);
+        });
+      }
+      return res.status(200).json({ ok: true, employee: { id: employeeId, unit, team, hierarchy } });
+    } catch (error) {
+      console.error("Employee profile update failed", error);
+      return registrationError(res, 500, "employee-update-failed", "제대원 정보를 수정하지 못했습니다.");
+    }
+  }
+);
+
+exports.deleteEmployee = onRequest(
+  { region: FUNCTIONS_REGION, invoker: "public", cors: true },
+  async (req, res) => {
+    if (req.method !== "POST") return registrationError(res, 405, "method-not-allowed", "POST 요청만 허용됩니다.");
+
+    let admin;
+    try {
+      admin = await getVerifiedAdmin(req);
+    } catch (error) {
+      return registrationError(res, 403, "admin-auth-required", "관리자 권한이 필요합니다.");
+    }
+
+    const employeeId = getEmployeeDocumentId(req.body?.employeeId);
+    if (!employeeId) return registrationError(res, 400, "invalid-employee-id", "제대원 ID를 확인해주세요.");
+
+    const employeeRef = db.collection("employees").doc(employeeId);
+    try {
+      const employeeSnapshot = await employeeRef.get();
+      if (!employeeSnapshot.exists) return registrationError(res, 404, "employee-not-found", "제대원을 찾지 못했습니다.");
+      const employee = employeeSnapshot.data();
+      if (employee.role !== "employee") return registrationError(res, 403, "admin-profile-protected", "관리자 계정은 이 화면에서 삭제할 수 없습니다.");
+
+      let authUid = employee.authUid || "";
+      if (!authUid && employee.email) {
+        const authUser = await getAuth().getUserByEmail(employee.email).catch((error) => {
+          if (error.code === "auth/user-not-found") return null;
+          throw error;
+        });
+        authUid = authUser?.uid || "";
+      }
+      if (authUid === admin.decodedToken.uid) return registrationError(res, 403, "self-delete-denied", "현재 로그인한 계정은 삭제할 수 없습니다.");
+
+      if (authUid) {
+        await getAuth().deleteUser(authUid).catch((error) => {
+          if (error.code !== "auth/user-not-found") throw error;
+        });
+      }
+
+      const batch = db.batch();
+      batch.delete(employeeRef);
+      if (employee.username) batch.delete(db.collection("usernames").doc(normalizeUsername(employee.username)));
+      if (employee.email) batch.delete(db.collection("employeeEmails").doc(emailReservationId(String(employee.email).trim().toLowerCase())));
+      await batch.commit();
+
+      console.log("Employee deleted by admin", { employeeId, employeeName: employee.name, deletedBy: admin.employee.name });
+      return res.status(200).json({ ok: true });
+    } catch (error) {
+      console.error("Employee deletion failed", error);
+      return registrationError(res, 500, "employee-delete-failed", "제대원을 삭제하지 못했습니다.");
+    }
+  }
+);
 
 function getSchedulerNames() {
   if (!schedulerClient) {
@@ -296,8 +566,9 @@ exports.getCurrentUserProfile = onRequest(
       return res.status(200).json({
         ok: true,
         profile: {
-          uid: employee.id,
-          email: decodedToken.email,
+          uid: decodedToken.uid,
+          username: employee.username || null,
+          email: employee.email || decodedToken.email,
           name: employee.name,
           role: employee.role,
           unit: employee.unit || "1제대",
@@ -473,7 +744,23 @@ exports.telegramWebhook = onRequest(
 
     const message = req.body?.message;
     const chatId = String(message?.chat?.id || "");
-    if (!message?.text || chatId !== telegramAllowedChatId.value().trim()) return res.status(200).send("ignored");
+    if (!message?.text || !chatId) return res.status(200).send("ignored");
+
+    // 새 대화방을 등록하기 전에 해당 방의 ID만 안전하게 확인할 수 있습니다.
+    // 다른 연가 명령은 아래의 허용 대화방 검사에 계속 제한됩니다.
+    if (/^\/chatid(?:@\w+)?$/i.test(message.text.trim())) {
+      try {
+        await sendTelegramMessage(
+          chatId,
+          `이 대화방의 Chat ID입니다.\n<code>${escapeTelegramHtml(chatId)}</code>`
+        );
+      } catch (error) {
+        console.error("/chatid command failed", error);
+      }
+      return res.status(200).send("ok");
+    }
+
+    if (chatId !== telegramAllowedChatId.value().trim()) return res.status(200).send("ignored");
 
     // 그룹에서 `/todayleaves@봇사용자명` 또는 `/tomorrowleaves@봇사용자명` 형태도 허용합니다.
     if (/^\/todayleaves(?:@\w+)?$/i.test(message.text.trim())) {

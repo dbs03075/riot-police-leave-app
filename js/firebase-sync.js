@@ -4,6 +4,7 @@
 // ========================================
 const TELEGRAM_NOTIFICATION_URL = `https://asia-northeast3-${firebaseConfig.projectId}.cloudfunctions.net/telegramClientNotification`;
 const TELEGRAM_SCHEDULE_URL = `https://asia-northeast3-${firebaseConfig.projectId}.cloudfunctions.net/updateTelegramSchedule`;
+const SAVE_LEAVE_CHANGES_URL = AUTH_API_URLS.saveLeaves;
 
 // 변동사항 알림 ON/OFF (localStorage에 저장)
 let telegramChangeNotifyEnabled = localStorage.getItem('telegram_notify_on_change') !== 'false';
@@ -306,10 +307,6 @@ async function sendTodayDetailToTelegram(options = {}) {
   return result;
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-  loadTelegramSettings();
-});
-
 let leavesUnsubscribe = null;
 let settingsUnsubscribe = null;
 let employeesUnsubscribe = null;
@@ -362,7 +359,6 @@ async function saveLeave() {
 
   try {
     const changesList = [];
-    const historyLog = [];
     const intendedChanges = {};
 
     // ⚠️ [핵심] 영화관 좌석처럼 충돌 방지를 위한 정밀 업데이트 (Granular Update)
@@ -384,7 +380,6 @@ async function saveLeave() {
         } else {
           changesList.push(`${empName}: ${reasonText} (수정)`);
         }
-        historyLog.push({ type: "add_or_update", empName, reason: reasonText });
       }
     });
 
@@ -393,7 +388,6 @@ async function saveLeave() {
       if (!editingLeaves[empName]) {
         intendedChanges[empName] = null;
         changesList.push(`${empName}: 삭제됨`);
-        historyLog.push({ type: "delete", empName, reason: "삭제됨" });
       }
     });
 
@@ -406,94 +400,34 @@ async function saveLeave() {
         const saveButtons = document.querySelectorAll("#leaveModal .save-btn");
         saveButtons.forEach((button) => (button.disabled = true));
 
-        const [year, month, day] = selectedDate.split("-");
-        const yearMonth = `${year}-${month}`;
-        const leaveRef = db.collection("leaves").doc(`${selectedUnit}_${yearMonth}`);
-        const capacityRef = db.collection("settings").doc(`maxCapacity_${selectedUnit}`);
-
-        const savedDay = await db.runTransaction(async (transaction) => {
-          const [leaveSnapshot, capacitySnapshot] = await Promise.all([
-            transaction.get(leaveRef),
-            transaction.get(capacityRef),
-          ]);
-          const latestDay = leaveSnapshot.exists ? { ...(leaveSnapshot.data().days?.[day] || {}) } : {};
-
-          for (const empName of changes) {
-            if (!isSameLeaveValue(latestDay[empName], originalLeaves[empName])) {
-              const conflictError = new Error("동일 직원 정보가 이미 변경되었습니다.");
-              conflictError.code = "leave/conflict";
-              conflictError.employeeName = empName;
-              throw conflictError;
-            }
-            if (intendedChanges[empName] === null) delete latestDay[empName];
-            else latestDay[empName] = intendedChanges[empName];
-          }
-
-          const latestCapacity = capacitySnapshot.exists
-            ? Number(capacitySnapshot.data()?.[selectedDate]) || defaultMaxCapacity
-            : defaultMaxCapacity;
-          const latestNonDutyCount = Object.values(latestDay).filter((reason) => !isDutyReason(reason)).length;
-          if (latestNonDutyCount > latestCapacity) {
-            const capacityError = new Error("정원을 초과했습니다.");
-            capacityError.code = "leave/capacity-exceeded";
-            capacityError.capacity = latestCapacity;
-            throw capacityError;
-          }
-
-          transaction.set(leaveRef, {
-            unit: selectedUnit,
-            month: yearMonth,
-            days: { [day]: latestDay },
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-            updatedBy: (currentUser && currentUser.name) || "Unknown",
-          }, { merge: true });
-
-          return latestDay;
-        });
-
-        const today = new Date();
-        const offset = today.getTimezoneOffset() * 60000;
-        const localDateStr = new Date(today - offset).toISOString().split("T")[0];
-        const historyRef = db.collection("leave_history").doc(`${selectedUnit}_${localDateStr}`);
-        const changeEntry = {
-          timestamp: new Date().toISOString(),
-          by: (currentUser && currentUser.name) || "Unknown",
-          leaveDate: selectedDate,
-          changes: historyLog,
+        if (!auth.currentUser) throw new Error("로그인 세션이 만료되었습니다.");
+        const token = await auth.currentUser.getIdToken();
+        const payload = {
+          date: selectedDate,
+          unit: selectedUnit,
+          changes: changes.map((name) => ({
+            name,
+            expected: originalLeaves[name] ?? null,
+            next: intendedChanges[name],
+          })),
         };
-        try {
-          await historyRef.set({ date: localDateStr, unit: selectedUnit }, { merge: true });
-          await historyRef.collection("logs").add(changeEntry);
-        } catch (historyError) {
-          console.warn("개별 변경 이력 저장 실패, 기존 이력 형식으로 재시도합니다.", historyError);
-          await historyRef.set({
-            date: localDateStr,
-            unit: selectedUnit,
-            logs: firebase.firestore.FieldValue.arrayUnion(changeEntry),
-          }, { merge: true });
+        const response = await fetch(SAVE_LEAVE_CHANGES_URL, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.ok) {
+          const saveError = new Error("연가 저장을 처리하지 못했습니다.");
+          saveError.code = result.code || "leave/save-failed";
+          saveError.employeeName = result.employeeName;
+          saveError.capacity = result.capacity;
+          throw saveError;
         }
 
-        // 연가 저장 성공 후 즉시 알림을 전송합니다. 알림 실패가 연가 저장을 취소시키지는 않습니다.
-        let telegramNotificationFailed = false;
-        if (telegramChangeNotifyEnabled) {
-          const telegramMessage =
-            `🔔 <b>[${escapeTelegramHtml(selectedUnit)}] 연가 변동사항</b>\n` +
-            `📅 대상일: ${escapeTelegramHtml(selectedDate)}\n` +
-            `👤 작업자: ${escapeTelegramHtml((currentUser && currentUser.name) || "관리자")}\n` +
-            `──────────────────\n` +
-            changesList.map((change) => escapeTelegramHtml(change)).join("\n");
-          const telegramResult = await sendTelegramMessage(telegramMessage);
-          telegramNotificationFailed = !telegramResult?.ok;
-        }
-
-        // 사용자에게 알림
         const summaryText = `[${selectedDate}] 연가 변동사항:\n` + changesList.join("\n");
-        const telegramWarning = telegramNotificationFailed
-          ? "\n\n※ 연가는 저장됐지만 텔레그램 알림 전송은 실패했습니다."
-          : "";
-        alert("저장 완료\n\n" + summaryText + telegramWarning);
-
-        leaves[selectedDate] = JSON.parse(JSON.stringify(savedDay));
+        alert("저장 완료\n\n" + summaryText);
+        leaves[selectedDate] = JSON.parse(JSON.stringify(result.day || {}));
       }
 
       // 전역 메모리 최신화 (성공 시에만)
