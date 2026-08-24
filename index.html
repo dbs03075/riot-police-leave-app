@@ -6,12 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>연가 관리 시스템</title>
     <!-- CSS: 분리된 모듈 파일 -->
-    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/base.css?v=20260824-spacing-fix">
     <link rel="stylesheet" href="css/layout.css">
-    <link rel="stylesheet" href="css/login.css?v=20260824-auth-fix">
+    <link rel="stylesheet" href="css/login.css?v=20260824-mobile-form">
     <link rel="stylesheet" href="css/calendar.css">
     <link rel="stylesheet" href="css/modal.css">
-    <link rel="stylesheet" href="css/settings.css?v=20260823-member-management">
+    <link rel="stylesheet" href="css/settings.css?v=20260824-team-select">
     <link rel="stylesheet" href="css/responsive.css">
     <link rel="stylesheet" href="css/scrollbar.css">
     <link rel="stylesheet" href="css/detail-modal.css">
@@ -85,7 +85,18 @@
                     <div id="employeeSignupFields" class="auth-grid-fields">
                         <div class="form-group">
                             <label for="signupTeam">팀</label>
-                            <input type="text" id="signupTeam" placeholder="예: 7팀" required>
+                            <select id="signupTeam" required>
+                                <option value="">팀 선택</option>
+                                <option value="1팀">1팀</option>
+                                <option value="2팀">2팀</option>
+                                <option value="3팀">3팀</option>
+                                <option value="4팀">4팀</option>
+                                <option value="5팀">5팀</option>
+                                <option value="6팀">6팀</option>
+                                <option value="7팀">7팀</option>
+                                <option value="8팀">8팀</option>
+                                <option value="9팀">9팀</option>
+                            </select>
                         </div>
                         <div class="form-group">
                             <label for="signupHierarchy">팀 내 연번</label>
@@ -325,11 +336,11 @@
 
     <!-- 앱 스크립트 (순서대로 로드) -->
     <script src="js/config.js?v=20260824-auth-fix"></script>
-    <script src="js/auth.js?v=20260823-username-auth"></script>
+    <script src="js/auth.js?v=20260824-team-select"></script>
     <script src="js/calendar.js?v=20260804-monthly-leaves"></script>
     <script src="js/leave-management.js?v=20260802-company"></script>
     <script src="js/modal.js?v=20260802-company"></script>
-    <script src="js/settings.js?v=20260823-member-management"></script>
+    <script src="js/settings.js?v=20260824-team-select"></script>
     <script src="js/firebase-sync.js?v=20260823-secure-save"></script>
     <script src="js/history.js?v=20260802-local-fix"></script>
     <script src="js/app.js?v=20260802-company"></script>

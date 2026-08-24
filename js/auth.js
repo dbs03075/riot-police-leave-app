@@ -35,6 +35,8 @@ function updateSignupRoleFields() {
     document.getElementById('signupHierarchy').required = isEmployee;
 }
 
+const SIGNUP_TEAM_VALUES = Array.from({ length: 9 }, (_, index) => `${index + 1}팀`);
+
 function validateUsername(username) {
     return /^[a-z0-9][a-z0-9._-]{3,23}$/.test(normalizeUsername(username));
 }
@@ -101,7 +103,7 @@ async function signup() {
 
     if (!validateUsername(payload.username)) return showLoginError('아이디는 4~24자 영문 소문자, 숫자, ., _, -만 사용할 수 있습니다.');
     if (!payload.name || !payload.email || payload.password.length < 8) return showLoginError('필수 항목과 8자 이상의 비밀번호를 확인해주세요.');
-    if (role === 'employee' && (!payload.team || !Number.isInteger(payload.hierarchy) || payload.hierarchy < 1)) {
+    if (role === 'employee' && (!SIGNUP_TEAM_VALUES.includes(payload.team) || !Number.isInteger(payload.hierarchy) || payload.hierarchy < 1)) {
         return showLoginError('일반 제대원은 팀과 팀 내 연번을 입력해야 합니다.');
     }
 

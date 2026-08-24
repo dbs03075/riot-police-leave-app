@@ -3,6 +3,7 @@
 // ========================================
 
 let managedEmployees = [];
+const MANAGED_TEAM_VALUES = Array.from({ length: 9 }, (_, index) => `${index + 1}팀`);
 let employeeManagementLoading = false;
 
 function getUnitOrder(unit) {
@@ -121,6 +122,12 @@ function renderEmployeeManagement() {
                 const unitOptions = units.map((value) =>
                     `<option value="${escapeHtml(value)}"${value === employee.unit ? ' selected' : ''}>${escapeHtml(value)}</option>`
                 ).join('');
+                const unknownTeamOption = MANAGED_TEAM_VALUES.includes(employee.team)
+                    ? ''
+                    : '<option value="" selected disabled>팀 선택</option>';
+                const teamOptions = unknownTeamOption + MANAGED_TEAM_VALUES.map((value) =>
+                    `<option value="${value}"${value === employee.team ? ' selected' : ''}>${value}</option>`
+                ).join('');
                 html += `<article class="organization-member" data-employee-id="${escapeHtml(employee.id)}">
                     <div class="organization-rank">${index + 1}</div>
                     <div class="organization-identity">
@@ -134,7 +141,7 @@ function renderEmployeeManagement() {
                     </label>
                     <label class="organization-field">
                         <span>팀</span>
-                        <input data-field="team" type="text" maxlength="40" value="${escapeHtml(employee.team)}">
+                        <select data-field="team">${teamOptions}</select>
                     </label>
                     <label class="organization-field organization-field-small">
                         <span>연번</span>
@@ -160,7 +167,7 @@ async function saveManagedEmployee(button) {
     const unit = row?.querySelector('[data-field="unit"]')?.value;
     const team = row?.querySelector('[data-field="team"]')?.value.trim();
     const hierarchy = Number(row?.querySelector('[data-field="hierarchy"]')?.value);
-    if (!employeeId || !units.includes(unit) || !team || !Number.isInteger(hierarchy) || hierarchy < 1 || hierarchy > 999) {
+    if (!employeeId || !units.includes(unit) || !MANAGED_TEAM_VALUES.includes(team) || !Number.isInteger(hierarchy) || hierarchy < 1 || hierarchy > 999) {
         alert('제대, 팀, 연번(1~999)을 확인해주세요.');
         return;
     }

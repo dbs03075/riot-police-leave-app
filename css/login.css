@@ -8,6 +8,9 @@
     justify-content: center;
     width: 100%;
     height: 100vh;
+    min-height: 100dvh;
+    padding: clamp(var(--space-16), 4vw, var(--space-32));
+    box-sizing: border-box;
     background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-active) 100%);
 }
 
@@ -23,7 +26,7 @@
 }
 
 .login-card:has(#signupForm.active) {
-    max-width: 560px;
+    max-width: 520px;
 }
 
 .login-card:has(#activateForm.active) {
@@ -140,10 +143,38 @@
 }
 
 @media (max-width: 600px) {
-    .login-card { max-height: 100vh; overflow-y: auto; border-radius: 0; }
-    .auth-mode-tabs { grid-template-columns: 1fr; }
+    .login-screen {
+        align-items: flex-start;
+        padding: var(--space-16);
+    }
+
+    .login-card {
+        max-height: calc(100dvh - (var(--space-16) * 2));
+        padding: var(--space-20);
+        overflow-y: auto;
+        border-radius: var(--radius-lg);
+    }
+
+    .login-card:has(#signupForm.active),
+    .login-card:has(#activateForm.active) {
+        max-width: 100%;
+    }
+
+    .login-card h1 { font-size: var(--font-size-3xl); }
+    .login-card > p { margin-bottom: var(--space-16); }
+    .auth-mode-tabs {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: var(--space-6);
+        margin-bottom: var(--space-16);
+    }
+    .auth-mode-btn {
+        padding: var(--space-8) var(--space-4);
+        font-size: var(--font-size-sm);
+        white-space: nowrap;
+    }
     .auth-form-grid, .auth-grid-fields { grid-template-columns: 1fr; }
     .auth-grid-wide, .auth-grid-fields { grid-column: auto; }
+    .form-group { margin-bottom: var(--space-14); }
 }
 
 .login-btn {
