@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="css/login.css?v=20260824-mobile-form">
     <link rel="stylesheet" href="css/calendar.css">
     <link rel="stylesheet" href="css/modal.css">
-    <link rel="stylesheet" href="css/settings.css?v=20260824-team-select">
+    <link rel="stylesheet" href="css/settings.css?v=20260825-unit-dropdown">
     <link rel="stylesheet" href="css/responsive.css">
     <link rel="stylesheet" href="css/scrollbar.css">
     <link rel="stylesheet" href="css/detail-modal.css">
@@ -229,9 +229,15 @@
                         <div class="employee-management-heading">
                             <div>
                                 <h3>👥 제대원 관리</h3>
-                                <p>제대·팀·팀 내 연번 순으로 직제표를 표시합니다. 수정 사항은 각 제대원별로 저장하세요.</p>
+                                <p>선택한 제대의 인원을 팀·팀 내 연번 순으로 표시합니다. 수정 사항은 각 제대원별로 저장하세요.</p>
                             </div>
-                            <button type="button" class="employee-refresh-btn" onclick="loadEmployeeManagement()">새로고침</button>
+                            <div class="employee-management-toolbar">
+                                <label class="employee-unit-filter" for="employeeManagementUnit">
+                                    <span>조회 제대</span>
+                                    <select id="employeeManagementUnit" onchange="changeEmployeeManagementUnit(this.value)"></select>
+                                </label>
+                                <button type="button" class="employee-refresh-btn" onclick="loadEmployeeManagement()">새로고침</button>
+                            </div>
                         </div>
                         <div id="employeeManagementStatus" class="employee-management-status">제대원 정보를 불러오는 중입니다...</div>
                         <div id="employeeManagementList" class="employee-management-list"></div>
@@ -340,7 +346,7 @@
     <script src="js/calendar.js?v=20260804-monthly-leaves"></script>
     <script src="js/leave-management.js?v=20260802-company"></script>
     <script src="js/modal.js?v=20260802-company"></script>
-    <script src="js/settings.js?v=20260824-team-select"></script>
+    <script src="js/settings.js?v=20260825-unit-dropdown"></script>
     <script src="js/firebase-sync.js?v=20260823-secure-save"></script>
     <script src="js/history.js?v=20260802-local-fix"></script>
     <script src="js/app.js?v=20260802-company"></script>

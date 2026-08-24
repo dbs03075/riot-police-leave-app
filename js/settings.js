@@ -5,6 +5,8 @@
 let managedEmployees = [];
 const MANAGED_TEAM_VALUES = Array.from({ length: 9 }, (_, index) => `${index + 1}팀`);
 let employeeManagementLoading = false;
+let employeeManagementUnit = '';
+let employeeManagementUserUid = '';
 
 function getUnitOrder(unit) {
     const index = units.indexOf(unit);
@@ -23,6 +25,32 @@ function setEmployeeManagementStatus(message, type = '') {
     if (!status) return;
     status.textContent = message;
     status.className = `employee-management-status${type ? ` ${type}` : ''}`;
+}
+
+function initializeEmployeeManagementUnit() {
+    const userUid = currentUser?.uid || currentUser?.authUid || auth.currentUser?.uid || '';
+    if (employeeManagementUserUid !== userUid) {
+        employeeManagementUserUid = userUid;
+        employeeManagementUnit = units.includes(currentUser?.unit) ? currentUser.unit : units[0];
+    }
+
+    if (!units.includes(employeeManagementUnit)) {
+        employeeManagementUnit = units.includes(currentUser?.unit) ? currentUser.unit : units[0];
+    }
+
+    const select = document.getElementById('employeeManagementUnit');
+    if (select) {
+        select.innerHTML = units.map((unit) =>
+            `<option value="${escapeHtml(unit)}"${unit === employeeManagementUnit ? ' selected' : ''}>${escapeHtml(unit)}</option>`
+        ).join('');
+        select.value = employeeManagementUnit;
+    }
+}
+
+function changeEmployeeManagementUnit(unit) {
+    if (!units.includes(unit)) return;
+    employeeManagementUnit = unit;
+    renderEmployeeManagement();
 }
 
 async function callEmployeeAdminApi(url, body) {
@@ -51,6 +79,7 @@ async function loadEmployeeManagement() {
     const list = document.getElementById('employeeManagementList');
     if (!list || employeeManagementLoading || !currentUser || currentUser.role !== 'admin') return;
 
+    initializeEmployeeManagementUnit();
     employeeManagementLoading = true;
     list.innerHTML = '';
     setEmployeeManagementStatus('제대원 정보를 불러오는 중입니다...');
@@ -76,7 +105,6 @@ async function loadEmployeeManagement() {
         );
 
         renderEmployeeManagement();
-        setEmployeeManagementStatus(`총 ${managedEmployees.length}명의 제대원이 등록되어 있습니다.`, 'success');
     } catch (error) {
         console.error('제대원 관리 목록 로드 실패:', error);
         setEmployeeManagementStatus('제대원 목록을 불러오지 못했습니다.', 'error');
@@ -88,29 +116,27 @@ async function loadEmployeeManagement() {
 function renderEmployeeManagement() {
     const container = document.getElementById('employeeManagementList');
     if (!container) return;
-    if (!managedEmployees.length) {
-        container.innerHTML = '<div class="employee-management-empty">등록된 제대원이 없습니다.</div>';
+    initializeEmployeeManagementUnit();
+    const visibleEmployees = managedEmployees.filter((employee) => employee.unit === employeeManagementUnit);
+    setEmployeeManagementStatus(`${employeeManagementUnit} 제대원 ${visibleEmployees.length}명이 등록되어 있습니다.`, 'success');
+    if (!visibleEmployees.length) {
+        container.innerHTML = `<div class="employee-management-empty">${escapeHtml(employeeManagementUnit)}에 등록된 제대원이 없습니다.</div>`;
         return;
     }
 
     const grouped = new Map();
-    managedEmployees.forEach((employee) => {
-        if (!grouped.has(employee.unit)) grouped.set(employee.unit, new Map());
-        const teams = grouped.get(employee.unit);
-        if (!teams.has(employee.team)) teams.set(employee.team, []);
-        teams.get(employee.team).push(employee);
+    visibleEmployees.forEach((employee) => {
+        if (!grouped.has(employee.team)) grouped.set(employee.team, []);
+        grouped.get(employee.team).push(employee);
     });
 
-    let html = '';
-    for (const [unit, teams] of grouped) {
-        const unitCount = Array.from(teams.values()).reduce((sum, members) => sum + members.length, 0);
-        html += `<section class="organization-unit">
-            <div class="organization-unit-header">
-                <h4>${escapeHtml(unit)}</h4>
-                <span>${unitCount}명</span>
-            </div>`;
+    let html = `<section class="organization-unit">
+        <div class="organization-unit-header">
+            <h4>${escapeHtml(employeeManagementUnit)}</h4>
+            <span>${visibleEmployees.length}명</span>
+        </div>`;
 
-        for (const [team, members] of teams) {
+    for (const [team, members] of grouped) {
             html += `<div class="organization-team">
                 <div class="organization-team-header">
                     <strong>${escapeHtml(team)}</strong>
@@ -155,9 +181,8 @@ function renderEmployeeManagement() {
             });
 
             html += '</div></div>';
-        }
-        html += '</section>';
     }
+    html += '</section>';
     container.innerHTML = html;
 }
 

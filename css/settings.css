@@ -43,6 +43,40 @@
     line-height: 1.5;
 }
 
+.employee-management-toolbar {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--space-10);
+}
+
+.employee-unit-filter {
+    display: grid;
+    gap: var(--space-6);
+    min-width: 140px;
+}
+
+.employee-unit-filter span {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+}
+
+.employee-unit-filter select {
+    width: 100%;
+    padding: var(--space-8) var(--space-10);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+    color: var(--color-text);
+    background: var(--color-surface);
+    font: inherit;
+    font-weight: var(--font-weight-semibold);
+}
+
+.employee-unit-filter select:focus {
+    outline: var(--focus-outline);
+    border-color: var(--color-primary);
+}
+
 .employee-refresh-btn,
 .organization-actions button {
     border: 0;
@@ -236,7 +270,9 @@
 @media (max-width: 640px) {
     .settings-page { padding: var(--space-14); }
     .settings-section { padding: var(--space-20); }
-    .employee-management-heading { align-items: flex-start; }
+    .employee-management-heading { align-items: stretch; flex-direction: column; }
+    .employee-management-toolbar { align-items: flex-end; }
+    .employee-unit-filter { flex: 1; }
     .organization-member {
         grid-template-columns: 32px 1fr;
         align-items: center;
