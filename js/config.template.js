@@ -20,6 +20,25 @@ firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
+const FUNCTIONS_BASE_URL = `https://asia-northeast3-${firebaseConfig.projectId}.cloudfunctions.net`;
+const AUTH_API_URLS = {
+    register: `${FUNCTIONS_BASE_URL}/registerEmployee`,
+    activateUsername: `${FUNCTIONS_BASE_URL}/activateUsername`,
+    profile: `${FUNCTIONS_BASE_URL}/getCurrentUserProfile`,
+    saveLeaves: `${FUNCTIONS_BASE_URL}/saveLeaveChanges`,
+    updateEmployee: `${FUNCTIONS_BASE_URL}/updateEmployeeProfile`,
+    deleteEmployee: `${FUNCTIONS_BASE_URL}/deleteEmployee`,
+};
+
+function normalizeUsername(value) {
+    return String(value || '').trim().toLowerCase();
+}
+
+function usernameToAuthEmail(value) {
+    const username = normalizeUsername(value);
+    return `${username}@users.${firebaseConfig.projectId}.firebaseapp.com`;
+}
+
 function escapeHtml(value) {
     return String(value ?? '')
         .replace(/&/g, '&amp;')
