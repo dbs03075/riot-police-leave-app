@@ -500,3 +500,206 @@
     outline: var(--focus-outline);
     box-shadow: var(--focus-ring);
 }
+
+/* ========================================
+   모바일 친화형 제대원 관리
+   ======================================== */
+
+.employee-management-filters {
+    display: grid;
+    gap: var(--space-10);
+    margin-top: var(--space-16);
+}
+
+.employee-management-search {
+    width: 100%;
+    min-height: 44px;
+    padding: var(--space-10) var(--space-12);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: inherit;
+    font-size: var(--font-size-sm);
+}
+
+.employee-management-search:focus {
+    outline: var(--focus-outline);
+    border-color: var(--color-primary);
+    box-shadow: var(--focus-ring);
+}
+
+.employee-management-team-filters {
+    display: flex;
+    gap: var(--space-6);
+    overflow-x: auto;
+    padding-bottom: var(--space-4);
+    scrollbar-width: thin;
+}
+
+.employee-management-team-btn {
+    flex: 0 0 auto;
+    min-height: 40px;
+    padding: var(--space-8) var(--space-12);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: inherit;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    cursor: pointer;
+}
+
+.employee-management-team-btn.active {
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+    color: var(--color-btn-primary-text);
+}
+
+.employee-management-team-btn:focus-visible,
+.organization-member-summary:focus-visible {
+    outline: var(--focus-outline);
+    box-shadow: var(--focus-ring);
+}
+
+.organization-unit.organization-unit-compact {
+    border: 0;
+    background: transparent;
+}
+
+.organization-unit-compact .organization-team {
+    margin: 0 0 var(--space-12);
+}
+
+.organization-member {
+    display: block;
+    padding: 0;
+}
+
+.organization-member-summary {
+    width: 100%;
+    min-height: 66px;
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    gap: var(--space-10);
+    align-items: center;
+    padding: var(--space-10) var(--space-12);
+    border: 0;
+    background: var(--color-surface);
+    color: var(--color-text);
+    text-align: left;
+    cursor: pointer;
+}
+
+.organization-member-summary:hover,
+.organization-member.open .organization-member-summary {
+    background: var(--color-secondary);
+}
+
+.organization-member-summary .organization-rank {
+    align-self: center;
+}
+
+.organization-member-summary .organization-identity {
+    display: grid;
+    gap: 2px;
+}
+
+.organization-expand-icon {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+}
+
+.organization-member-editor {
+    display: none;
+    padding: var(--space-12);
+    border-top: 1px solid var(--color-border);
+    background: var(--color-secondary);
+}
+
+.organization-member.open .organization-member-editor {
+    display: block;
+}
+
+.organization-editor-fields {
+    display: grid;
+    grid-template-columns: minmax(100px, 1fr) minmax(100px, 1fr) 90px;
+    gap: var(--space-10);
+}
+
+.organization-member-editor .organization-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: var(--space-12);
+}
+
+.organization-member-editor .organization-delete {
+    color: var(--color-error);
+    background: transparent;
+}
+
+.organization-member-editor .organization-save {
+    min-width: 110px;
+}
+
+@media (max-width: 640px) {
+    .employee-management-section {
+        padding: var(--space-16);
+    }
+
+    .employee-management-toolbar {
+        align-items: flex-end;
+    }
+
+    .employee-management-status {
+        margin: var(--space-12) 0;
+    }
+
+    .organization-team-header {
+        padding: var(--space-8) var(--space-12);
+    }
+
+    .organization-member-summary {
+        grid-template-columns: 32px minmax(0, 1fr) auto;
+        min-height: 64px;
+        padding: var(--space-10);
+    }
+
+    .organization-member-summary .organization-rank {
+        width: 28px;
+        height: 28px;
+    }
+
+    .organization-editor-fields {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .organization-editor-fields .organization-field {
+        grid-column: auto;
+    }
+
+    .organization-editor-fields .organization-field-small {
+        grid-column: 1 / -1;
+    }
+
+    .organization-member-editor .organization-actions {
+        grid-column: auto;
+        justify-content: stretch;
+    }
+
+    .organization-member-editor .organization-actions button {
+        flex: 1;
+        min-height: 44px;
+    }
+}
+
+@media (max-width: 380px) {
+    .organization-editor-fields {
+        grid-template-columns: 1fr;
+    }
+
+    .organization-editor-fields .organization-field-small {
+        grid-column: auto;
+    }
+}

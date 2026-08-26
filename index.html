@@ -10,8 +10,8 @@
     <link rel="stylesheet" href="css/layout.css">
     <link rel="stylesheet" href="css/login.css?v=20260824-mobile-form">
     <link rel="stylesheet" href="css/calendar.css">
-    <link rel="stylesheet" href="css/modal.css">
-    <link rel="stylesheet" href="css/settings.css?v=20260825-unit-dropdown">
+    <link rel="stylesheet" href="css/modal.css?v=20260825-quick-picker">
+    <link rel="stylesheet" href="css/settings.css?v=20260825-mobile-management">
     <link rel="stylesheet" href="css/responsive.css">
     <link rel="stylesheet" href="css/scrollbar.css">
     <link rel="stylesheet" href="css/detail-modal.css">
@@ -239,6 +239,13 @@
                                 <button type="button" class="employee-refresh-btn" onclick="loadEmployeeManagement()">새로고침</button>
                             </div>
                         </div>
+                        <div class="employee-management-filters">
+                            <input type="search" id="employeeManagementSearch" class="employee-management-search"
+                                placeholder="🔍 이름·아이디·이메일 검색" autocomplete="off"
+                                oninput="filterEmployeeManagement(this.value)">
+                            <div id="employeeManagementTeamFilters" class="employee-management-team-filters"
+                                aria-label="팀 필터"></div>
+                        </div>
                         <div id="employeeManagementStatus" class="employee-management-status">제대원 정보를 불러오는 중입니다...</div>
                         <div id="employeeManagementList" class="employee-management-list"></div>
                     </section>
@@ -268,7 +275,7 @@
 
     <!-- 연가 모달 -->
     <div id="leaveModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content leave-modal-content">
             <div class="modal-header">
                 <span id="modalDateTitle">-</span>
                 <button class="close-btn" onclick="closeModal()">×</button>
@@ -276,9 +283,32 @@
 
             <div id="adminView" style="display: none;">
                 <div class="employee-selection">
-                    <label class="employee-label">직원 선택</label>
-                    <input type="text" id="employeeSearch" class="employee-search" placeholder="🔍 직원 이름으로 검색...">
-                    <div class="employee-list" id="employeeList"></div>
+                    <div class="employee-picker-heading">
+                        <label class="employee-label">직원 선택</label>
+                        <button type="button" id="employeePickerModeToggle" class="employee-picker-mode-btn"
+                            onclick="toggleEmployeePickerMode()">기존 방식</button>
+                    </div>
+
+                    <div id="quickEmployeePicker" class="quick-employee-picker">
+                        <div class="quick-picker-guide">사유 선택 → 직원 이름 터치 · 선택 내역의 ×로 해제</div>
+                        <div id="quickReasonButtons" class="quick-reason-buttons"></div>
+                        <input type="text" id="quickReasonDetail" class="quick-reason-detail"
+                            placeholder="선택할 직원에게 적용할 상세 사유">
+                        <div id="quickTeamButtons" class="quick-team-buttons"></div>
+                        <input type="search" id="quickEmployeeSearch" class="employee-search"
+                            placeholder="🔍 직원 이름으로 검색..." autocomplete="off">
+                        <div class="quick-selected-header">
+                            <span id="quickSelectedCount">0명 선택</span>
+                            <button type="button" class="quick-clear-btn" onclick="clearQuickEmployeeSelection()">모두 해제</button>
+                        </div>
+                        <div id="quickSelectedEmployees" class="quick-selected-employees"></div>
+                        <div id="quickEmployeeGrid" class="quick-employee-grid"></div>
+                    </div>
+
+                    <div id="legacyEmployeePicker" class="legacy-employee-picker">
+                        <input type="text" id="employeeSearch" class="employee-search" placeholder="🔍 직원 이름으로 검색...">
+                        <div class="employee-list" id="employeeList"></div>
+                    </div>
                 </div>
 
                 <div class="leave-list">
@@ -344,9 +374,9 @@
     <script src="js/config.js?v=20260824-auth-fix"></script>
     <script src="js/auth.js?v=20260824-team-select"></script>
     <script src="js/calendar.js?v=20260804-monthly-leaves"></script>
-    <script src="js/leave-management.js?v=20260802-company"></script>
-    <script src="js/modal.js?v=20260802-company"></script>
-    <script src="js/settings.js?v=20260825-unit-dropdown"></script>
+    <script src="js/leave-management.js?v=20260825-quick-picker"></script>
+    <script src="js/modal.js?v=20260825-quick-picker"></script>
+    <script src="js/settings.js?v=20260825-mobile-management"></script>
     <script src="js/firebase-sync.js?v=20260823-secure-save"></script>
     <script src="js/history.js?v=20260802-local-fix"></script>
     <script src="js/app.js?v=20260802-company"></script>

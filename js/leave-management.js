@@ -2,8 +2,190 @@
 // 연가 관리 함수 (DB 연동)
 // ========================================
 
-// 📌 DB에서 로드한 직원 목록으로 UI 생성
+let employeePickerMode = localStorage.getItem('employee_picker_mode') || 'quick';
+let quickPickerReason = 'annual';
+let quickPickerTeam = 'all';
+const quickPickerDetails = {};
+const quickDetailReasons = ['special', 'education', 'sick', 'compensatory_rest', 'leave_early_late', 'etc'];
+
 function renderEmployeeList() {
+    const quickPicker = document.getElementById('quickEmployeePicker');
+    const legacyPicker = document.getElementById('legacyEmployeePicker');
+    const modeToggle = document.getElementById('employeePickerModeToggle');
+
+    if (!quickPicker || !legacyPicker) return;
+
+    const useQuickPicker = employeePickerMode === 'quick';
+    quickPicker.style.display = useQuickPicker ? 'block' : 'none';
+    legacyPicker.style.display = useQuickPicker ? 'none' : 'block';
+
+    if (modeToggle) {
+        modeToggle.textContent = useQuickPicker ? '기존 방식' : '빠른 선택';
+        modeToggle.setAttribute('aria-label', useQuickPicker ? '기존 직원 선택 방식으로 전환' : '빠른 직원 선택 방식으로 전환');
+    }
+
+    if (useQuickPicker) {
+        renderQuickEmployeePicker();
+    } else {
+        renderLegacyEmployeeList();
+    }
+}
+
+function toggleEmployeePickerMode() {
+    employeePickerMode = employeePickerMode === 'quick' ? 'legacy' : 'quick';
+    localStorage.setItem('employee_picker_mode', employeePickerMode);
+    renderEmployeeList();
+}
+
+function renderQuickEmployeePicker() {
+    const reasonButtons = document.getElementById('quickReasonButtons');
+    const teamButtons = document.getElementById('quickTeamButtons');
+    const employeeGrid = document.getElementById('quickEmployeeGrid');
+    const selectedEmployees = document.getElementById('quickSelectedEmployees');
+    const selectedCount = document.getElementById('quickSelectedCount');
+    const searchInput = document.getElementById('quickEmployeeSearch');
+    const detailInput = document.getElementById('quickReasonDetail');
+
+    if (!reasonButtons || !teamButtons || !employeeGrid || !selectedEmployees || !selectedCount || !searchInput || !detailInput) return;
+
+    reasonButtons.innerHTML = leaveReasons.map(reason => `
+        <button type="button" class="quick-reason-btn${reason.value === quickPickerReason ? ' active' : ''}"
+            data-reason="${reason.value}" aria-pressed="${reason.value === quickPickerReason}">
+            ${escapeHtml(reason.label)}
+        </button>
+    `).join('');
+
+    const teams = [...new Set(employees.map(emp => emp.team || '미지정'))].sort();
+    const teamOptions = [{ value: 'all', label: `전체 ${employees.length}` }].concat(
+        teams.map(team => ({
+            value: team,
+            label: `${team} ${employees.filter(emp => (emp.team || '미지정') === team).length}`
+        }))
+    );
+
+    if (quickPickerTeam !== 'all' && !teams.includes(quickPickerTeam)) quickPickerTeam = 'all';
+
+    teamButtons.innerHTML = teamOptions.map(team => `
+        <button type="button" class="quick-team-btn${team.value === quickPickerTeam ? ' active' : ''}"
+            data-team="${encodeURIComponent(team.value)}" aria-pressed="${team.value === quickPickerTeam}">
+            ${escapeHtml(team.label)}
+        </button>
+    `).join('');
+
+    const needsDetail = quickDetailReasons.includes(quickPickerReason);
+    detailInput.style.display = needsDetail ? 'block' : 'none';
+    detailInput.value = quickPickerDetails[quickPickerReason] || '';
+
+    const searchValue = searchInput.value.trim().toLowerCase();
+    const visibleEmployees = employees
+        .filter(emp => quickPickerTeam === 'all' || (emp.team || '미지정') === quickPickerTeam)
+        .filter(emp => emp.name.toLowerCase().includes(searchValue))
+        .sort((a, b) => {
+            const teamCompare = (a.team || '미지정').localeCompare(b.team || '미지정', 'ko');
+            if (teamCompare !== 0) return teamCompare;
+            const hierarchyCompare = (a.hierarchy || 999) - (b.hierarchy || 999);
+            return hierarchyCompare !== 0 ? hierarchyCompare : a.name.localeCompare(b.name, 'ko');
+        });
+
+    employeeGrid.innerHTML = visibleEmployees.length > 0
+        ? visibleEmployees.map(emp => {
+            const leaveData = editingLeaves[emp.name];
+            const isSelected = Boolean(leaveData);
+            const reasonValue = isSelected ? (typeof leaveData === 'object' ? leaveData.label : leaveData) : '';
+            const reasonLabel = leaveReasons.find(reason => reason.value === reasonValue)?.label || '';
+            return `
+                <button type="button" class="quick-employee-btn${isSelected ? ' selected' : ''}"
+                    data-employee="${encodeURIComponent(emp.name)}" aria-pressed="${isSelected}">
+                    <span class="quick-employee-name">${escapeHtml(emp.name)}</span>
+                    ${isSelected ? `<span class="quick-employee-reason">${escapeHtml(reasonLabel)}</span>` : ''}
+                </button>
+            `;
+        }).join('')
+        : '<div class="quick-picker-empty">검색 결과가 없습니다.</div>';
+
+    const selectedNames = Object.keys(editingLeaves).sort((a, b) => {
+        const employeeA = employees.find(emp => emp.name === a);
+        const employeeB = employees.find(emp => emp.name === b);
+        return (employeeA?.hierarchy || 999) - (employeeB?.hierarchy || 999);
+    });
+
+    selectedCount.textContent = `${selectedNames.length}명 선택`;
+    selectedEmployees.innerHTML = selectedNames.length > 0
+        ? selectedNames.map(name => {
+            const leaveData = editingLeaves[name];
+            const reasonValue = typeof leaveData === 'object' ? leaveData.label : leaveData;
+            const reasonLabel = leaveReasons.find(reason => reason.value === reasonValue)?.label || reasonValue;
+            return `
+                <button type="button" class="quick-selected-chip" data-remove-employee="${encodeURIComponent(name)}"
+                    aria-label="${escapeHtml(name)} 선택 해제">
+                    ${escapeHtml(name)} · ${escapeHtml(reasonLabel)} <span aria-hidden="true">×</span>
+                </button>
+            `;
+        }).join('')
+        : '<span class="quick-selected-empty">선택된 직원이 없습니다.</span>';
+
+    reasonButtons.onclick = event => {
+        const button = event.target.closest('[data-reason]');
+        if (!button) return;
+        quickPickerReason = button.dataset.reason;
+        renderQuickEmployeePicker();
+    };
+
+    teamButtons.onclick = event => {
+        const button = event.target.closest('[data-team]');
+        if (!button) return;
+        quickPickerTeam = decodeURIComponent(button.dataset.team);
+        renderQuickEmployeePicker();
+    };
+
+    employeeGrid.onclick = event => {
+        const button = event.target.closest('[data-employee]');
+        if (!button) return;
+        toggleQuickEmployeeSelection(decodeURIComponent(button.dataset.employee));
+    };
+
+    selectedEmployees.onclick = event => {
+        const button = event.target.closest('[data-remove-employee]');
+        if (!button) return;
+        delete editingLeaves[decodeURIComponent(button.dataset.removeEmployee)];
+        updateLeaveItems();
+        renderQuickEmployeePicker();
+    };
+
+    searchInput.oninput = renderQuickEmployeePicker;
+    detailInput.oninput = () => {
+        quickPickerDetails[quickPickerReason] = detailInput.value;
+    };
+}
+
+function toggleQuickEmployeeSelection(empName) {
+    const currentLeave = editingLeaves[empName];
+    const currentReason = currentLeave && (typeof currentLeave === 'object' ? currentLeave.label : currentLeave);
+
+    if (currentReason === quickPickerReason) {
+        delete editingLeaves[empName];
+    } else {
+        const empInfo = employees.find(emp => emp.name === empName);
+        editingLeaves[empName] = {
+            label: quickPickerReason,
+            reason: quickDetailReasons.includes(quickPickerReason) ? (quickPickerDetails[quickPickerReason] || '') : '',
+            team: empInfo?.team || '미지정',
+            hierarchy: empInfo?.hierarchy || 999
+        };
+    }
+
+    updateLeaveItems();
+    renderQuickEmployeePicker();
+}
+
+function clearQuickEmployeeSelection() {
+    editingLeaves = {};
+    updateLeaveItems();
+    renderQuickEmployeePicker();
+}
+
+// 📌 DB에서 로드한 직원 목록으로 UI 생성
+function renderLegacyEmployeeList() {
     let html = '';
 
     // 팀별로 분류

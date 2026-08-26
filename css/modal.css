@@ -73,6 +73,210 @@
     margin-bottom: var(--space-24);
 }
 
+.leave-modal-content {
+    max-width: 620px;
+}
+
+.employee-picker-heading,
+.quick-selected-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-8);
+}
+
+.employee-picker-heading .employee-label {
+    margin-bottom: 0;
+}
+
+.employee-picker-mode-btn,
+.quick-clear-btn {
+    border: none;
+    background: transparent;
+    color: var(--color-primary);
+    padding: var(--space-6) var(--space-8);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-family-base);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    cursor: pointer;
+}
+
+.employee-picker-mode-btn:hover,
+.quick-clear-btn:hover {
+    background: rgba(var(--color-primary-rgb), 0.08);
+}
+
+.employee-picker-mode-btn:focus-visible,
+.quick-clear-btn:focus-visible,
+.quick-reason-btn:focus-visible,
+.quick-team-btn:focus-visible,
+.quick-employee-btn:focus-visible,
+.quick-selected-chip:focus-visible {
+    outline: var(--focus-outline);
+    box-shadow: var(--focus-ring);
+}
+
+.quick-employee-picker {
+    margin-top: var(--space-12);
+}
+
+.quick-picker-guide {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    margin-bottom: var(--space-10);
+}
+
+.quick-reason-buttons,
+.quick-team-buttons {
+    display: flex;
+    gap: var(--space-6);
+    overflow-x: auto;
+    padding-bottom: var(--space-6);
+    margin-bottom: var(--space-8);
+    scrollbar-width: thin;
+}
+
+.quick-reason-btn,
+.quick-team-btn {
+    flex: 0 0 auto;
+    min-height: 40px;
+    padding: var(--space-8) var(--space-12);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-family: var(--font-family-base);
+    font-size: var(--font-size-xs);
+    cursor: pointer;
+}
+
+.quick-reason-btn.active,
+.quick-team-btn.active {
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+    color: var(--color-btn-primary-text);
+}
+
+.quick-reason-detail {
+    display: none;
+    width: 100%;
+    padding: var(--space-10) var(--space-12);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+    margin-bottom: var(--space-10);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-family: var(--font-family-base);
+    font-size: var(--font-size-sm);
+}
+
+.quick-reason-detail:focus {
+    outline: var(--focus-outline);
+    border-color: var(--color-primary);
+    box-shadow: var(--focus-ring);
+}
+
+.quick-selected-header {
+    margin-bottom: var(--space-6);
+    color: var(--color-text);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+}
+
+.quick-selected-employees {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-6);
+    min-height: 34px;
+    padding: var(--space-8);
+    margin-bottom: var(--space-10);
+    border-radius: var(--radius-base);
+    background: var(--color-secondary);
+}
+
+.quick-selected-chip {
+    border: 1px solid rgba(var(--color-primary-rgb), 0.2);
+    border-radius: 999px;
+    background: rgba(var(--color-primary-rgb), 0.1);
+    color: var(--color-text);
+    padding: var(--space-6) var(--space-8);
+    font-family: var(--font-family-base);
+    font-size: var(--font-size-xs);
+    cursor: pointer;
+}
+
+.quick-selected-empty,
+.quick-picker-empty {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+}
+
+.quick-employee-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-8);
+    max-height: 280px;
+    overflow-y: auto;
+}
+
+.quick-employee-btn {
+    position: relative;
+    min-width: 0;
+    min-height: 58px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: var(--space-8);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-family: var(--font-family-base);
+    cursor: pointer;
+}
+
+.quick-employee-btn:hover {
+    background: var(--color-secondary-hover);
+}
+
+.quick-employee-btn.selected {
+    border-color: var(--color-primary);
+    background: rgba(var(--color-primary-rgb), 0.1);
+}
+
+.quick-employee-btn.selected::after {
+    content: "✓";
+    position: absolute;
+    top: var(--space-4);
+    right: var(--space-6);
+    color: var(--color-primary);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+}
+
+.quick-employee-name {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+}
+
+.quick-employee-reason {
+    color: var(--color-primary);
+    font-size: var(--font-size-xs);
+}
+
+.quick-picker-empty {
+    grid-column: 1 / -1;
+    padding: var(--space-20);
+    text-align: center;
+}
+
 .employee-label,
 .reason-label {
     display: block;
@@ -373,4 +577,46 @@
 .cancel-btn:focus-visible {
     outline: var(--focus-outline);
     box-shadow: var(--focus-ring);
+}
+
+@media (max-width: 480px) {
+    .leave-modal-content {
+        width: calc(100% - var(--space-16));
+        max-height: 94vh;
+        padding: var(--space-12);
+    }
+
+    .quick-picker-guide {
+        margin-bottom: var(--space-8);
+    }
+
+    .quick-reason-btn,
+    .quick-team-btn {
+        min-height: 42px;
+        padding: var(--space-8) var(--space-10);
+    }
+
+    .quick-employee-grid {
+        gap: var(--space-6);
+        max-height: 320px;
+    }
+
+    .quick-employee-btn {
+        min-height: 56px;
+        padding: var(--space-6);
+    }
+
+    .quick-employee-name {
+        font-size: var(--font-size-xs);
+    }
+
+    .quick-employee-reason {
+        font-size: 10px;
+    }
+}
+
+@media (max-width: 360px) {
+    .quick-employee-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }

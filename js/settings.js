@@ -7,6 +7,9 @@ const MANAGED_TEAM_VALUES = Array.from({ length: 9 }, (_, index) => `${index + 1
 let employeeManagementLoading = false;
 let employeeManagementUnit = '';
 let employeeManagementUserUid = '';
+let employeeManagementSearch = '';
+let employeeManagementTeam = 'all';
+let employeeManagementOpenId = '';
 
 function getUnitOrder(unit) {
     const index = units.indexOf(unit);
@@ -50,6 +53,27 @@ function initializeEmployeeManagementUnit() {
 function changeEmployeeManagementUnit(unit) {
     if (!units.includes(unit)) return;
     employeeManagementUnit = unit;
+    employeeManagementTeam = 'all';
+    employeeManagementOpenId = '';
+    renderEmployeeManagement();
+}
+
+function filterEmployeeManagement(value) {
+    employeeManagementSearch = String(value || '').trim().toLowerCase();
+    employeeManagementOpenId = '';
+    renderEmployeeManagement();
+}
+
+function changeEmployeeManagementTeam(team) {
+    employeeManagementTeam = team || 'all';
+    employeeManagementOpenId = '';
+    renderEmployeeManagement();
+}
+
+function toggleManagedEmployeeEditor(button) {
+    const row = button.closest('.organization-member');
+    const employeeId = row?.dataset.employeeId || '';
+    employeeManagementOpenId = employeeManagementOpenId === employeeId ? '' : employeeId;
     renderEmployeeManagement();
 }
 
@@ -117,10 +141,51 @@ function renderEmployeeManagement() {
     const container = document.getElementById('employeeManagementList');
     if (!container) return;
     initializeEmployeeManagementUnit();
-    const visibleEmployees = managedEmployees.filter((employee) => employee.unit === employeeManagementUnit);
-    setEmployeeManagementStatus(`${employeeManagementUnit} 제대원 ${visibleEmployees.length}명이 등록되어 있습니다.`, 'success');
-    if (!visibleEmployees.length) {
+    const searchInput = document.getElementById('employeeManagementSearch');
+    const teamFilters = document.getElementById('employeeManagementTeamFilters');
+    if (searchInput && searchInput.value !== employeeManagementSearch) searchInput.value = employeeManagementSearch;
+
+    const unitEmployees = managedEmployees.filter((employee) => employee.unit === employeeManagementUnit);
+    const teams = [...new Set(unitEmployees.map((employee) => employee.team || '미지정'))].sort(compareTeamNames);
+    if (employeeManagementTeam !== 'all' && !teams.includes(employeeManagementTeam)) employeeManagementTeam = 'all';
+
+    if (teamFilters) {
+        const teamOptions = [{ value: 'all', label: `전체 ${unitEmployees.length}` }].concat(
+            teams.map((team) => ({
+                value: team,
+                label: `${team} ${unitEmployees.filter((employee) => (employee.team || '미지정') === team).length}`,
+            }))
+        );
+        teamFilters.innerHTML = teamOptions.map((team) => `
+            <button type="button" class="employee-management-team-btn${team.value === employeeManagementTeam ? ' active' : ''}"
+                data-team="${encodeURIComponent(team.value)}" aria-pressed="${team.value === employeeManagementTeam}"
+                onclick="changeEmployeeManagementTeam(decodeURIComponent(this.dataset.team))">
+                ${escapeHtml(team.label)}
+            </button>
+        `).join('');
+    }
+
+    const visibleEmployees = unitEmployees.filter((employee) => {
+        const matchesTeam = employeeManagementTeam === 'all' || (employee.team || '미지정') === employeeManagementTeam;
+        const searchable = `${employee.name} ${employee.username} ${employee.email}`.toLowerCase();
+        return matchesTeam && searchable.includes(employeeManagementSearch);
+    });
+
+    const hasFilter = employeeManagementTeam !== 'all' || Boolean(employeeManagementSearch);
+    setEmployeeManagementStatus(
+        hasFilter
+            ? `${employeeManagementUnit} 전체 ${unitEmployees.length}명 중 ${visibleEmployees.length}명을 표시합니다.`
+            : `${employeeManagementUnit} 제대원 ${unitEmployees.length}명이 등록되어 있습니다.`,
+        'success'
+    );
+
+    if (!unitEmployees.length) {
         container.innerHTML = `<div class="employee-management-empty">${escapeHtml(employeeManagementUnit)}에 등록된 제대원이 없습니다.</div>`;
+        return;
+    }
+
+    if (!visibleEmployees.length) {
+        container.innerHTML = '<div class="employee-management-empty">검색 조건에 맞는 제대원이 없습니다.</div>';
         return;
     }
 
@@ -130,11 +195,7 @@ function renderEmployeeManagement() {
         grouped.get(employee.team).push(employee);
     });
 
-    let html = `<section class="organization-unit">
-        <div class="organization-unit-header">
-            <h4>${escapeHtml(employeeManagementUnit)}</h4>
-            <span>${visibleEmployees.length}명</span>
-        </div>`;
+    let html = '<section class="organization-unit organization-unit-compact">';
 
     for (const [team, members] of grouped) {
             html += `<div class="organization-team">
@@ -154,28 +215,37 @@ function renderEmployeeManagement() {
                 const teamOptions = unknownTeamOption + MANAGED_TEAM_VALUES.map((value) =>
                     `<option value="${value}"${value === employee.team ? ' selected' : ''}>${value}</option>`
                 ).join('');
-                html += `<article class="organization-member" data-employee-id="${escapeHtml(employee.id)}">
-                    <div class="organization-rank">${index + 1}</div>
-                    <div class="organization-identity">
-                        <strong>${escapeHtml(employee.name)}</strong>
-                        <span>${escapeHtml(employee.username || '아이디 미연결')}</span>
-                        <small>${escapeHtml(employee.email || '이메일 없음')}</small>
-                    </div>
-                    <label class="organization-field">
-                        <span>제대</span>
-                        <select data-field="unit">${unitOptions}</select>
-                    </label>
-                    <label class="organization-field">
-                        <span>팀</span>
-                        <select data-field="team">${teamOptions}</select>
-                    </label>
-                    <label class="organization-field organization-field-small">
-                        <span>연번</span>
-                        <input data-field="hierarchy" type="number" min="1" max="999" step="1" value="${employee.hierarchy}">
-                    </label>
-                    <div class="organization-actions">
-                        <button type="button" class="organization-save" onclick="saveManagedEmployee(this)">수정</button>
-                        <button type="button" class="organization-delete" onclick="deleteManagedEmployee(this)">삭제</button>
+                const isOpen = employee.id === employeeManagementOpenId;
+                html += `<article class="organization-member${isOpen ? ' open' : ''}" data-employee-id="${escapeHtml(employee.id)}">
+                    <button type="button" class="organization-member-summary" aria-expanded="${isOpen}"
+                        onclick="toggleManagedEmployeeEditor(this)">
+                        <span class="organization-rank">${employee.hierarchy}</span>
+                        <span class="organization-identity">
+                            <strong>${escapeHtml(employee.name)}</strong>
+                            <span>${escapeHtml(employee.username || '아이디 미연결')} · ${escapeHtml(employee.team)} · 연번 ${employee.hierarchy}</span>
+                            <small>${escapeHtml(employee.email || '이메일 없음')}</small>
+                        </span>
+                        <span class="organization-expand-icon" aria-hidden="true">${isOpen ? '▲' : '▼'}</span>
+                    </button>
+                    <div class="organization-member-editor">
+                        <div class="organization-editor-fields">
+                            <label class="organization-field">
+                                <span>제대</span>
+                                <select data-field="unit">${unitOptions}</select>
+                            </label>
+                            <label class="organization-field">
+                                <span>팀</span>
+                                <select data-field="team">${teamOptions}</select>
+                            </label>
+                            <label class="organization-field organization-field-small">
+                                <span>팀 내 연번</span>
+                                <input data-field="hierarchy" type="number" min="1" max="999" step="1" value="${employee.hierarchy}">
+                            </label>
+                        </div>
+                        <div class="organization-actions">
+                            <button type="button" class="organization-delete" onclick="deleteManagedEmployee(this)">제대원 삭제</button>
+                            <button type="button" class="organization-save" onclick="saveManagedEmployee(this)">변경 저장</button>
+                        </div>
                     </div>
                 </article>`;
             });

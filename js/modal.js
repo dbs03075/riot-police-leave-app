@@ -49,7 +49,8 @@ function showAdminView() {
     document.getElementById('employeeView').style.display = 'none';
 
     document.getElementById('employeeSearch').value = '';
-    document.getElementById('employeeSearch').addEventListener('input', filterEmployees);
+    document.getElementById('employeeSearch').oninput = filterEmployees;
+    document.getElementById('quickEmployeeSearch').value = '';
 
     // DB에서 로드한 직원 목록으로 렌더링
     renderEmployeeList(); //leave-management.js에 있음
